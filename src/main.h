@@ -143,6 +143,6 @@ create_egress_root_pipe (
 doca_error_t
 create_ingress_root_pipe(
 	struct doca_flow_port *port,
-	struct doca_flow_pipe *next,
+	uint16_t dst_port_id,
     struct doca_flow_pipe **configured_pipe
 );

@@ -157,7 +157,7 @@ main(int argc, char **argv)
 	for (int i = 0; i < 2; i++) {
         struct port_ctx *port_ctx = i == 0 ? &app_cfg.p0_ctx : &app_cfg.p1_ctx;
 
-		result = create_ingress_root_pipe(port_ctx->port, port_ctx->egress_root_pipe, &port_ctx->ingress_root_pipe);
+		result = create_ingress_root_pipe(port_ctx->port, 1 - port_ctx->port_id, &port_ctx->ingress_root_pipe);
         if (result != DOCA_SUCCESS) {
             DOCA_LOG_ERR("Failed to create ingress root pipe on port %d: %s", port_ctx->port_id, doca_error_get_descr(result));
             goto exit;
