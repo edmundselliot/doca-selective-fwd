@@ -1,7 +1,7 @@
 
 #include "main.h"
 
-struct app_ctx router_cfg = {0};
+struct app_ctx app_cfg = {0};
 
 //
 // argv requirements:
@@ -90,7 +90,7 @@ main(int argc, char **argv)
 	//
 	// Register the command line arguments
 	//
-	result = doca_argp_init("doca-router", &router_cfg);
+	result = doca_argp_init("doca-router", &app_cfg);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to init ARGP resources: %s", doca_error_get_descr(result));
 		goto exit;
@@ -103,7 +103,7 @@ main(int argc, char **argv)
 		goto exit;
 	}
 
-	result = open_doca_device_with_pci(pci_addr.c_str(), &router_cfg.p0_ctx.dev);
+	result = open_doca_device_with_pci(pci_addr.c_str(), &app_cfg.p0_ctx.dev);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to open doca device: %s", doca_error_get_descr(result));
 		goto exit;
@@ -112,18 +112,18 @@ main(int argc, char **argv)
 	//
 	// Initialize DPDK
 	//
-	result = doca_dpdk_port_probe(router_cfg.p0_ctx.dev, "dv_flow_en=2,dv_xmeta_en=4");
+	result = doca_dpdk_port_probe(app_cfg.p0_ctx.dev, "dv_flow_en=2,dv_xmeta_en=4");
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to probe port: %s", doca_error_get_descr(result));
 		goto exit;
 	}
 
-	router_cfg.dpdk_config.port_config.nb_ports = rte_eth_dev_count_avail();
-	router_cfg.dpdk_config.port_config.nb_hairpin_q = rte_eth_dev_count_avail();
-	router_cfg.dpdk_config.port_config.nb_queues = rte_lcore_count();
-	router_cfg.dpdk_config.port_config.self_hairpin = true;
-	router_cfg.dpdk_config.reserve_main_thread = true;
-	result = dpdk_queues_and_ports_init(&router_cfg.dpdk_config);
+	app_cfg.dpdk_config.port_config.nb_ports = rte_eth_dev_count_avail();
+	app_cfg.dpdk_config.port_config.nb_hairpin_q = rte_eth_dev_count_avail();
+	app_cfg.dpdk_config.port_config.nb_queues = rte_lcore_count();
+	app_cfg.dpdk_config.port_config.self_hairpin = true;
+	app_cfg.dpdk_config.reserve_main_thread = true;
+	result = dpdk_queues_and_ports_init(&app_cfg.dpdk_config);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to update ports and queues");
 		goto exit;
@@ -132,7 +132,7 @@ main(int argc, char **argv)
 	//
 	// Initialize DOCA & DOCA ports
 	//
-	flow_init(&router_cfg);
+	flow_init(&app_cfg);
 
 
 	//
@@ -141,7 +141,7 @@ main(int argc, char **argv)
     std::this_thread::sleep_for(std::chrono::seconds(5));
 
 exit:
-	DOCA_LOG_INFO("Router exiting...");
+	DOCA_LOG_INFO("Sample exiting...");
 	doca_flow_destroy();
 	doca_argp_destroy();
 	if (result != DOCA_SUCCESS)

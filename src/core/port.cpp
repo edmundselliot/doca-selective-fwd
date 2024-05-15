@@ -17,28 +17,35 @@ flow_op_to_str(enum doca_flow_entry_op op)
 	}
 }
 
-static struct doca_flow_port *
+static int
 port_init(struct port_ctx *port_ctx)
 {
 	doca_error_t res;
-
 	std::string port_id_str = std::to_string(port_ctx->port_id);
 
     struct doca_flow_port_cfg *port_cfg;
-    doca_flow_port_cfg_create(&port_cfg);
-    doca_flow_port_cfg_set_devargs(port_cfg, port_id_str.c_str());
-	doca_flow_port_cfg_set_dev(port_cfg, &port_ctx->dev);
-	res = doca_flow_port_start(port_cfg, &port_ctx->port);
+    res = doca_flow_port_cfg_create(&port_cfg);
+    if (res != DOCA_SUCCESS) {
+        DOCA_LOG_ERR("Failed to create port config: %d\n", res);
+        return res;
+    }
 
-	// struct doca_flow_port_cfg port_cfg = {
-	// 	.port_id = port_ctx->port_id,
-	// 	.type = DOCA_FLOW_PORT_DPDK_BY_ID,
-	// 	.devargs = port_id_str,
-	// 	.dev = port_ctx->dev,
-	// };
+    res = doca_flow_port_cfg_set_devargs(port_cfg, port_id_str.c_str());
+    if (res != DOCA_SUCCESS) {
+        DOCA_LOG_ERR("Failed to set port devargs: %d\n", res);
+        return res;
+    }
 
+	res = doca_flow_port_cfg_set_dev(port_cfg, &port_ctx->dev);
+	if (res != DOCA_SUCCESS) {
+        DOCA_LOG_ERR("Failed to set port dev: %d\n", res);
+        return res;
+    }
+
+    res = doca_flow_port_start(port_cfg, &port_ctx->port);
 	if (res != DOCA_SUCCESS) {
 		rte_exit(EXIT_FAILURE, "failed to initialize doca flow port: %d\n", res);
+        return res;
 	}
 
 	rte_eth_macaddr_get(port_ctx->port_id, &port_ctx->port_mac);
@@ -52,7 +59,7 @@ port_init(struct port_ctx *port_ctx)
 		port_ctx->port_mac.addr_bytes[4],
 		port_ctx->port_mac.addr_bytes[5]);
 
-	return port_ctx->port;
+	return res;
 }
 
 /*
@@ -91,6 +98,8 @@ int
 flow_init(struct app_ctx *config)
 {
 	struct doca_flow_cfg *flow_cfg;
+    int result;
+
     doca_flow_cfg_create(&flow_cfg);
     doca_flow_cfg_set_pipe_queues(flow_cfg, config->dpdk_config.port_config.nb_queues);
     doca_flow_cfg_set_nr_counters(flow_cfg, 1024);
@@ -103,9 +112,20 @@ flow_init(struct app_ctx *config)
 	}
 	DOCA_LOG_DBG("DOCA flow init done");
 
-	port_init(&config->p0_ctx);
+    config->p0_ctx.port_id = 0;
+	result = port_init(&config->p0_ctx);
+    if (result != 0) {
+        DOCA_LOG_ERR("Failed to init port 0: %d\n", result);
+        return result;
+    }
 
-	// TODO once we add p1, put it here
+    config->p1_ctx.port_id = 1;
+	result = port_init(&config->p1_ctx);
+    if (result != 0) {
+        DOCA_LOG_ERR("Failed to init port 1: %d\n", result);
+        return result;
+    }
+
 	DOCA_LOG_DBG("DOCA flow port init done");
 
 	return 0;

@@ -28,7 +28,7 @@
 
 typedef struct app_ctx app_ctx;
 
-extern app_ctx router_cfg;
+extern app_ctx app_cfg;
 
 DOCA_LOG_REGISTER("switch_demo");
 
@@ -79,20 +79,6 @@ struct port_ctx {
     // Single ingress root pipe, entry point
     struct doca_flow_pipe *root_pipe;
 
-    // Used to select the VRF domain based on VLAN
-    struct doca_flow_pipe *vlan_selector_pipe;
-
-    // VRF domain
-    // Each VRF domain contains IP classifiers & LPMs
-    struct vrf_domain_ctx vrf_domain_list[MAX_VRF_DOMAINS];
-
-    // We will have number of ECMP pipes == number of ECMP sets
-    // Each ECMP pipe will have entries == number of next hops in that set
-    struct doca_flow_pipe *ecmp_pipe_v4[MAX_ECMP_SETS];
-    std::vector<doca_flow_pipe_entry*> ecmp_pipe_v4_entries[MAX_ECMP_SETS];
-    struct doca_flow_pipe *ecmp_pipe_v6[MAX_ECMP_SETS];
-    std::vector<doca_flow_pipe_entry*> ecmp_pipe_v6_entries[MAX_ECMP_SETS];
-
     // Single egress root pipe, exit point
     struct doca_flow_pipe *egress_root_pipe;
 };
@@ -100,7 +86,7 @@ struct port_ctx {
 struct app_ctx {
     struct application_dpdk_config dpdk_config;
     struct port_ctx p0_ctx;
-    // struct port_ctx p1_ctx;
+    struct port_ctx p1_ctx;
 };
 
 void
