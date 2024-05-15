@@ -134,11 +134,44 @@ main(int argc, char **argv)
 	//
 	flow_init(&app_cfg);
 
+	result = doca_flow_port_pair(app_cfg.p0_ctx.port, app_cfg.p1_ctx.port);
+	if (result != DOCA_SUCCESS) {
+		DOCA_LOG_ERR("Failed to create port pairing: %s", doca_error_get_descr(result));
+		goto exit;
+	}
+
+	//
+    // Program pipes & flows
+	//
+	DOCA_LOG_INFO("Creating pipes...");
+    for (int i = 0; i < 2; i++) {
+        struct port_ctx *port_ctx = i == 0 ? &app_cfg.p0_ctx : &app_cfg.p1_ctx;
+
+		result = create_egress_root_pipe(port_ctx->port, port_ctx->port_id, &port_ctx->egress_root_pipe);
+        if (result != DOCA_SUCCESS) {
+            DOCA_LOG_ERR("Failed to create ingress root pipe on port %d: %s", port_ctx->port_id, doca_error_get_descr(result));
+            goto exit;
+        }
+    }
+	DOCA_LOG_INFO("Created egress root pipes...");
+	for (int i = 0; i < 2; i++) {
+        struct port_ctx *port_ctx = i == 0 ? &app_cfg.p0_ctx : &app_cfg.p1_ctx;
+
+		result = create_ingress_root_pipe(port_ctx->port, port_ctx->egress_root_pipe, &port_ctx->ingress_root_pipe);
+        if (result != DOCA_SUCCESS) {
+            DOCA_LOG_ERR("Failed to create ingress root pipe on port %d: %s", port_ctx->port_id, doca_error_get_descr(result));
+            goto exit;
+        }
+    }
+	DOCA_LOG_INFO("Created ingress root pipes...");
+
+
+	DOCA_LOG_INFO("Done creating pipes...");
 
 	//
 	// App is set up at this point. Monitor stats and wait for exit signal
 	//
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+	std::this_thread::sleep_for(std::chrono::seconds(30));
 
 exit:
 	DOCA_LOG_INFO("Sample exiting...");

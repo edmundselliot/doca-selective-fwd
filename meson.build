@@ -9,6 +9,9 @@ source_files = [
 	'src/main.cpp',
     'src/dpdk_utils.c',
 	'src/core/port.cpp',
+	'src/core/monitoring.cpp',
+    'src/pipes/egress_root.cpp',
+    'src/pipes/ingress_root.cpp',
 ]
 
 deps = [

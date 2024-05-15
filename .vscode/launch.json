@@ -10,6 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/doca-sample",
             "args": [
+                "-m 0xf",
                 "-a26:00.0,dv_flow_en=2,dv_xmeta_en=4",
                 "-a26:00.1,dv_flow_en=2,dv_xmeta_en=4"
             ],

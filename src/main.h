@@ -77,7 +77,7 @@ struct port_ctx {
     struct doca_dev *dev;
 
     // Single ingress root pipe, entry point
-    struct doca_flow_pipe *root_pipe;
+    struct doca_flow_pipe *ingress_root_pipe;
 
     // Single egress root pipe, exit point
     struct doca_flow_pipe *egress_root_pipe;
@@ -88,9 +88,6 @@ struct app_ctx {
     struct port_ctx p0_ctx;
     struct port_ctx p1_ctx;
 };
-
-void
-monitoring_loop();
 
 doca_error_t
 register_argp(struct app_ctx *config);
@@ -119,3 +116,33 @@ do {\
 	addr[5] = f & 0xff;\
 } while (0)
 
+#define IF_SUCCESS(result, expr) \
+	if (result == DOCA_SUCCESS) { \
+		result = expr; \
+		if (likely(result == DOCA_SUCCESS)) { \
+			DOCA_LOG_DBG("Success: %s", #expr); \
+		} else { \
+			DOCA_LOG_ERR("Error: %s: %s", #expr, doca_error_get_descr(result)); \
+		} \
+	} else { /* skip this expr */ \
+	}
+
+// --- Functions for monitoring ---
+// Comment in/out as needed
+void monitoring_loop();
+
+// --- Functions for creating pipes ---
+// Comment in/out as needed
+doca_error_t
+create_egress_root_pipe (
+	struct doca_flow_port *port,
+	uint16_t port_id,
+    struct doca_flow_pipe **configured_pipe
+);
+
+doca_error_t
+create_ingress_root_pipe(
+	struct doca_flow_port *port,
+	struct doca_flow_pipe *next,
+    struct doca_flow_pipe **configured_pipe
+);
