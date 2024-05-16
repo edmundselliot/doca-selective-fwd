@@ -119,9 +119,8 @@ main(int argc, char **argv)
 	}
 
 	app_cfg.dpdk_config.port_config.nb_ports = rte_eth_dev_count_avail();
-	app_cfg.dpdk_config.port_config.nb_hairpin_q = rte_eth_dev_count_avail();
-	app_cfg.dpdk_config.port_config.nb_queues = rte_lcore_count();
-	app_cfg.dpdk_config.port_config.self_hairpin = true;
+	app_cfg.dpdk_config.port_config.nb_hairpin_q = 4;
+	app_cfg.dpdk_config.port_config.nb_queues = 4;
 	app_cfg.dpdk_config.reserve_main_thread = true;
 	result = dpdk_queues_and_ports_init(&app_cfg.dpdk_config);
 	if (result != DOCA_SUCCESS) {
@@ -156,8 +155,9 @@ main(int argc, char **argv)
 	DOCA_LOG_INFO("Created egress root pipes...");
 	for (int i = 0; i < 2; i++) {
         struct port_ctx *port_ctx = i == 0 ? &app_cfg.p0_ctx : &app_cfg.p1_ctx;
+        struct port_ctx *other_port_ctx = i == 0 ? &app_cfg.p1_ctx : &app_cfg.p0_ctx;
 
-		result = create_ingress_root_pipe(port_ctx->port, 1 - port_ctx->port_id, &port_ctx->ingress_root_pipe);
+		result = create_ingress_root_pipe(port_ctx->port, other_port_ctx->port_id, &port_ctx->ingress_root_pipe);
         if (result != DOCA_SUCCESS) {
             DOCA_LOG_ERR("Failed to create ingress root pipe on port %d: %s", port_ctx->port_id, doca_error_get_descr(result));
             goto exit;
