@@ -78,9 +78,11 @@ struct port_ctx {
 
     // Single ingress root pipe, entry point
     struct doca_flow_pipe *ingress_root_pipe;
+	struct doca_flow_pipe_entry *ingress_root_pipe_entry;
 
     // Single egress root pipe, exit point
     struct doca_flow_pipe *egress_root_pipe;
+    struct doca_flow_pipe_entry *egress_root_pipe_entry;
 };
 
 struct app_ctx {
@@ -116,6 +118,8 @@ do {\
 	addr[5] = f & 0xff;\
 } while (0)
 
+#define BE_IPV4_ADDR(a, b, c, d) (RTE_BE32((a << 24) + (b << 16) + (c << 8) + d))	/* Big endian conversion */
+
 #define IF_SUCCESS(result, expr) \
 	if (result == DOCA_SUCCESS) { \
 		result = expr; \
@@ -137,12 +141,14 @@ doca_error_t
 create_egress_root_pipe (
 	struct doca_flow_port *port,
 	uint16_t port_id,
-    struct doca_flow_pipe **configured_pipe
+    struct doca_flow_pipe **configured_pipe,
+	struct doca_flow_pipe_entry **configured_entry
 );
 
 doca_error_t
 create_ingress_root_pipe(
 	struct doca_flow_port *port,
 	uint16_t dst_port_id,
-    struct doca_flow_pipe **configured_pipe
+    struct doca_flow_pipe **configured_pipe,
+	struct doca_flow_pipe_entry **configured_entry
 );
