@@ -1,17 +1,12 @@
-project('doca-router', 'c', 'cpp', default_options: ['buildtype=debug'])
-
-common_dir_path = '/opt/mellanox/doca/applications/common'
+project('doca-router', 'c', default_options: ['buildtype=debug'])
 
 add_project_arguments('-DDOCA_ALLOW_EXPERIMENTAL_API', language: 'c')
-add_project_arguments('-DDOCA_ALLOW_EXPERIMENTAL_API', language: 'cpp')
 
 source_files = [
-	'src/main.cpp',
+	'src/main.c',
+	'src/pipes.c',
+	'src/flow_common.c',
     'src/dpdk_utils.c',
-	'src/core/port.cpp',
-	'src/core/monitoring.cpp',
-    'src/pipes/egress_root.cpp',
-    'src/pipes/ingress_root.cpp',
 ]
 
 deps = [
@@ -20,7 +15,6 @@ deps = [
 ]
 
 app_inc_dirs = [
-	include_directories(common_dir_path),
 	include_directories('src'),
 ]
 

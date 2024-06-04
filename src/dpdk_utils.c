@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES, ALL RIGHTS RESERVED.
+ * Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES, ALL RIGHTS RESERVED.
  *
  * This software product is a proprietary product of NVIDIA CORPORATION &
  * AFFILIATES (the "Company") and all right, title, and interest in and to the
@@ -20,10 +20,6 @@
 #include <doca_buf_inventory.h>
 
 #include "dpdk_utils.h"
-
-#ifdef GPU_SUPPORT
-#include "gpu_init.h"
-#endif
 
 DOCA_LOG_REGISTER(NUTILS);
 
@@ -254,37 +250,6 @@ static doca_error_t allocate_mempool(const uint32_t total_nb_mbufs, struct rte_m
 	return DOCA_SUCCESS;
 }
 
-#ifdef GPU_SUPPORT
-/*
- * Unmap GPU resources
- *
- * @app_dpdk_config [in]: application DPDK configuration values
- */
-static void dpdk_gpu_unmap(struct application_dpdk_config *app_dpdk_config)
-{
-	int result = 0;
-	uint16_t port_id;
-	uint16_t n;
-
-	for (port_id = 0, n = 0; port_id < RTE_MAX_ETHPORTS; port_id++) {
-		if (!rte_eth_dev_is_valid_port(port_id))
-			continue;
-		struct rte_eth_dev_info dev_info;
-		struct rte_pktmbuf_extmem *ext_mem = &app_dpdk_config->pipe.ext_mem;
-
-		result = rte_eth_dev_info_get(port_id, &dev_info);
-		if (result != 0)
-			DOCA_LOG_ERR("Failed getting device (port %u) info, error=%s", port_id, strerror(-result));
-
-		result = rte_dev_dma_unmap(dev_info.device, ext_mem->buf_ptr, ext_mem->buf_iova, ext_mem->buf_len);
-		if (result != 0)
-			DOCA_LOG_ERR("Could not DMA unmap EXT memory");
-		if (++n >= app_dpdk_config->port_config.nb_ports)
-			break;
-	}
-}
-#endif
-
 /*
  * Initialize all the port resources
  *
@@ -331,21 +296,13 @@ static doca_error_t port_init(struct rte_mempool *mbuf_pool, uint8_t port, struc
 		DOCA_LOG_ERR("Failed getting device (port %u) info, error=%s", port, strerror(-ret));
 		return DOCA_ERROR_DRIVER;
 	}
+	if (*dev_info.dev_flags & RTE_ETH_DEV_REPRESENTOR && app_config->port_config.switch_mode) {
+		DOCA_LOG_INFO("Skip represent port %d init in switch mode", port);
+		return DOCA_SUCCESS;
+	}
+
 	port_conf.rxmode.mq_mode = rss_support ? RTE_ETH_MQ_RX_RSS : RTE_ETH_MQ_RX_NONE;
 
-#ifdef GPU_SUPPORT
-	if (app_config->pipe.gpu_support) {
-		struct rte_pktmbuf_extmem *ext_mem = &app_config->pipe.ext_mem;
-
-		/* Mapped the memory region to the devices (ports) */
-		DOCA_LOG_DBG("GPU Support, DMA map to GPU");
-		ret = rte_dev_dma_map(dev_info.device, ext_mem->buf_ptr, ext_mem->buf_iova, ext_mem->buf_len);
-		if (ret < 0) {
-			DOCA_LOG_ERR("Could not DMA map EXT memory - (%d)", ret);
-			return DOCA_ERROR_DRIVER;
-		}
-	}
-#endif
 	/* Configure the Ethernet device */
 	ret = rte_eth_dev_configure(port, rx_rings + nb_hairpin_queues, tx_rings + nb_hairpin_queues, &port_conf);
 	if (ret < 0) {
@@ -476,9 +433,8 @@ static void dpdk_ports_fini(struct application_dpdk_config *app_dpdk_config, uin
 {
 	int result;
 	int port_id;
-	uint16_t n;
 
-	for (port_id = nb_ports, n = 0; port_id >= 0; port_id--) {
+	for (port_id = nb_ports; port_id >= 0; port_id--) {
 		if (!rte_eth_dev_is_valid_port(port_id))
 			continue;
 		result = rte_eth_dev_stop(port_id);
@@ -488,19 +444,11 @@ static void dpdk_ports_fini(struct application_dpdk_config *app_dpdk_config, uin
 		result = rte_eth_dev_close(port_id);
 		if (result != 0)
 			DOCA_LOG_ERR("rte_eth_dev_close(): err=%d, port=%u", result, port_id);
-		if (++n >= app_dpdk_config->port_config.nb_ports)
-			break;
 	}
 
 	/* Free the memory pool used by the ports for rte_pktmbufs */
 	if (app_dpdk_config->mbuf_pool != NULL)
 		rte_mempool_free(app_dpdk_config->mbuf_pool);
-#ifdef GPU_SUPPORT
-	if (app_dpdk_config->pipe.gpu_support) {
-		rte_free(app_dpdk_config->pipe.ext_mem.buf_ptr);
-		app_dpdk_config->pipe.ext_mem.buf_ptr = NULL;
-	}
-#endif
 }
 
 /*
@@ -519,14 +467,7 @@ static doca_error_t dpdk_ports_init(struct application_dpdk_config *app_config)
 	const uint32_t total_nb_mbufs = app_config->port_config.nb_queues * nb_ports * NUM_MBUFS;
 
 	/* Initialize mbufs mempool */
-#ifdef GPU_SUPPORT
-	if (app_config->pipe.gpu_support)
-		result = allocate_mempool_gpu(total_nb_mbufs, &app_config->pipe, &app_config->mbuf_pool);
-	else
-		result = allocate_mempool(total_nb_mbufs, &app_config->mbuf_pool);
-#else
 	result = allocate_mempool(total_nb_mbufs, &app_config->mbuf_pool);
-#endif
 	if (result != DOCA_SUCCESS)
 		return result;
 
@@ -549,10 +490,6 @@ static doca_error_t dpdk_ports_init(struct application_dpdk_config *app_config)
 		if (result != DOCA_SUCCESS) {
 			DOCA_LOG_ERR("Cannot init port %" PRIu8, port_id);
 			dpdk_ports_fini(app_config, port_id);
-#ifdef GPU_SUPPORT
-			if (app_config->pipe.gpu_support)
-				dpdk_gpu_unmap(app_config);
-#endif
 			return result;
 		}
 		if (++n >= nb_ports)
@@ -587,19 +524,12 @@ doca_error_t dpdk_queues_and_ports_init(struct application_dpdk_config *app_dpdk
 
 	if (app_dpdk_config->reserve_main_thread)
 		app_dpdk_config->port_config.nb_queues -= 1;
-#ifdef GPU_SUPPORT
-	/* Enable GPU device and initialization the resources */
-	if (app_dpdk_config->pipe.gpu_support) {
-		DOCA_LOG_DBG("Enabling GPU support");
-		gpu_init(&app_dpdk_config->pipe);
-	}
-#endif
 
 	if (app_dpdk_config->port_config.nb_ports > 0) {
 		result = dpdk_ports_init(app_dpdk_config);
 		if (result != DOCA_SUCCESS) {
 			DOCA_LOG_ERR("Ports allocation failed");
-			goto gpu_cleanup;
+			return result;
 		}
 	}
 
@@ -614,28 +544,11 @@ doca_error_t dpdk_queues_and_ports_init(struct application_dpdk_config *app_dpdk
 
 ports_cleanup:
 	dpdk_ports_fini(app_dpdk_config, RTE_MAX_ETHPORTS);
-#ifdef GPU_SUPPORT
-	if (app_dpdk_config->pipe.gpu_support)
-		dpdk_gpu_unmap(app_dpdk_config);
-#endif
-gpu_cleanup:
-#ifdef GPU_SUPPORT
-	if (app_dpdk_config->pipe.gpu_support)
-		gpu_fini(&(app_dpdk_config->pipe));
-#endif
 	return result;
 }
 
 void dpdk_queues_and_ports_fini(struct application_dpdk_config *app_dpdk_config)
 {
-#ifdef GPU_SUPPORT
-	if (app_dpdk_config->pipe.gpu_support) {
-		DOCA_LOG_DBG("GPU support cleanup");
-		gpu_fini(&(app_dpdk_config->pipe));
-		dpdk_gpu_unmap(app_dpdk_config);
-	}
-#endif
-
 	disable_hairpin_queues(RTE_MAX_ETHPORTS);
 
 	dpdk_ports_fini(app_dpdk_config, RTE_MAX_ETHPORTS);
