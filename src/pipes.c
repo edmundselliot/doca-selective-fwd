@@ -15,11 +15,15 @@
 #include <unistd.h>
 
 #include <rte_byteorder.h>
+#include <rte_ethdev.h>
 
 #include <doca_log.h>
 #include <doca_flow.h>
 
 #include "flow_common.h"
+#include <arpa/inet.h>
+
+#define PACKET_BURST 256
 
 DOCA_LOG_REGISTER(FLOW_HAIRPIN_VNF);
 
@@ -175,7 +179,15 @@ destroy_pipe_cfg:
  * @status [in]: user context for adding entry
  * @return: DOCA_SUCCESS on success and DOCA_ERROR otherwise.
  */
-static doca_error_t add_hairpin_pipe_entry(struct doca_flow_port *port, struct doca_flow_pipe *pipe)
+static doca_error_t
+add_hairpin_pipe_entry(
+    struct doca_flow_port *port,
+    struct doca_flow_pipe *pipe,
+    doca_be32_t dst_ip_addr,
+    doca_be32_t src_ip_addr,
+    doca_be16_t dst_port,
+    doca_be16_t src_port
+    )
 {
 	struct doca_flow_match match;
 	struct doca_flow_actions actions;
@@ -184,11 +196,6 @@ static doca_error_t add_hairpin_pipe_entry(struct doca_flow_port *port, struct d
     struct entries_status status;
 
 	/* example 5-tuple to forward */
-	doca_be32_t dst_ip_addr = BE_IPV4_ADDR(60, 0, 0, 2);
-	doca_be32_t src_ip_addr = BE_IPV4_ADDR(60, 0, 0, 1);
-	doca_be16_t dst_port = rte_cpu_to_be_16(80);
-	doca_be16_t src_port = rte_cpu_to_be_16(1234);
-
 	memset(&match, 0, sizeof(match));
 	memset(&actions, 0, sizeof(actions));
     memset(&status, 0, sizeof(status));
@@ -224,7 +231,7 @@ static doca_error_t add_hairpin_pipe_entry(struct doca_flow_port *port, struct d
  * @nb_queues [in]: number of queues the sample will use
  * @return: DOCA_SUCCESS on success and DOCA_ERROR otherwise.
  */
-doca_error_t configure_static_pipes(int nb_queues)
+doca_error_t run_app(int nb_queues)
 {
 	int nb_ports = 2;
 	struct flow_resources resource = {
@@ -253,11 +260,11 @@ doca_error_t configure_static_pipes(int nb_queues)
     // On each port:
     //   1. Add an RSS pipe and a match-all entry on the RSS pipe
     //   2. Add a hairpin pipe, which in miss, will forward packets to the RSS pipe
+    struct doca_flow_pipe *rss_pipes[nb_ports];
+    struct doca_flow_pipe *hairpin_pipes[nb_ports];
 	for (port_id = 0; port_id < nb_ports; port_id++) {
-        struct doca_flow_pipe *rss_pipe;
-        struct doca_flow_pipe *hairpin_pipe;
 
-        result = create_rss_pipe(ports[port_id], &rss_pipe, nb_queues);
+        result = create_rss_pipe(ports[port_id], &rss_pipes[port_id], nb_queues);
         if (result != DOCA_SUCCESS) {
             DOCA_LOG_ERR("Failed to create RSS pipe: %s", doca_error_get_descr(result));
             stop_doca_flow_ports(nb_ports, ports);
@@ -265,23 +272,63 @@ doca_error_t configure_static_pipes(int nb_queues)
             return result;
         }
 
-		result = create_hairpin_pipe(ports[port_id], port_id, rss_pipe, &hairpin_pipe);
+		result = create_hairpin_pipe(ports[port_id], port_id, rss_pipes[port_id], &hairpin_pipes[port_id]);
 		if (result != DOCA_SUCCESS) {
 			DOCA_LOG_ERR("Failed to create hairpin pipe: %s", doca_error_get_descr(result));
 			stop_doca_flow_ports(nb_ports, ports);
 			doca_flow_destroy();
 			return result;
 		}
-
-		result = add_hairpin_pipe_entry(ports[port_id], hairpin_pipe);
-		if (result != DOCA_SUCCESS) {
-			DOCA_LOG_ERR("Failed to add hairpin entry: %s", doca_error_get_descr(result));
-			stop_doca_flow_ports(nb_ports, ports);
-			doca_flow_destroy();
-			return result;
-		}
 	}
 
-    // Start a PMD on each port
+    // Listen for packets, when you see packets, prompt for allow/deny
+    struct rte_mbuf *packets[PACKET_BURST];
+    struct rte_ether_hdr *eth_hdr;
+    struct rte_ipv4_hdr *ipv4_hdr;
+    struct rte_tcp_hdr *tcp_hdr;
+    char src_addr[INET_ADDRSTRLEN];
+    char dst_addr[INET_ADDRSTRLEN];
+    DOCA_LOG_INFO("Setup done. Listening for packets");
+    while (1) {
+        for (int port_id = 0; port_id < nb_ports; port_id++) {
+            for (int queue_id = 0; queue_id < nb_queues; queue_id++) {
+                int nb_packets = rte_eth_rx_burst(port_id, queue_id, packets, PACKET_BURST);
+                if (nb_packets == 0) {
+                    continue;
+                }
+                // DOCA_LOG_INFO("Received %d packets on port %d, queue %d", nb_packets, port_id, queue_id);
+
+                // for demo only, assume it's an ipv4 TCP
+                for (int packet_idx = 0; packet_idx < nb_packets; packet_idx++) {
+                    eth_hdr = rte_pktmbuf_mtod(packets[packet_idx], struct rte_ether_hdr *);
+                    ipv4_hdr = (struct rte_ipv4_hdr *)((char *)eth_hdr + sizeof(struct rte_ether_hdr));
+                    tcp_hdr = (struct rte_tcp_hdr *)((char *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+
+                    inet_ntop(AF_INET, &ipv4_hdr->src_addr, src_addr, sizeof(src_addr));
+                    inet_ntop(AF_INET, &ipv4_hdr->dst_addr, dst_addr, sizeof(dst_addr));
+
+                    printf("Offload %s:%d -> %s:%d? (y/n): ", src_addr, rte_be_to_cpu_16(tcp_hdr->src_port), dst_addr, rte_be_to_cpu_16(tcp_hdr->dst_port));
+                    fflush(stdout);
+                    unsigned char c;
+                    scanf(" %c", &c);
+                    if (c == 'y') {
+                        add_hairpin_pipe_entry(
+                            ports[port_id],
+                            hairpin_pipes[port_id],
+                            ipv4_hdr->dst_addr,
+                            ipv4_hdr->src_addr,
+                            tcp_hdr->dst_port,
+                            tcp_hdr->src_port
+                        );
+                        DOCA_LOG_INFO("Flow offloaded");
+                    }
+                    else {
+                        DOCA_LOG_INFO("Flow will not be offloaded");
+                    }
+                }
+            }
+        }
+    }
+
 	return result;
 }

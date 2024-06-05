@@ -19,14 +19,11 @@
 
 #include <dpdk_utils.h>
 
-#include <rte_ethdev.h>
 
 DOCA_LOG_REGISTER(FLOW_HAIRPIN_VNF::MAIN);
 
-#define PACKET_BURST 256
-
 /* Sample's Logic */
-doca_error_t configure_static_pipes(int nb_queues);
+doca_error_t run_app(int nb_queues);
 
 /*
  * Sample main function
@@ -80,26 +77,12 @@ int main(int argc, char **argv)
 		goto dpdk_cleanup;
 	}
 
-	/* configure static pipes */
-	result = configure_static_pipes(dpdk_config.port_config.nb_queues);
+	/* configure static pipes, then run "pmd" */
+	result = run_app(dpdk_config.port_config.nb_queues);
 	if (result != DOCA_SUCCESS) {
-		DOCA_LOG_ERR("configure_static_pipes() encountered an error: %s", doca_error_get_descr(result));
+		DOCA_LOG_ERR("run_app() encountered an error: %s", doca_error_get_descr(result));
 		goto dpdk_ports_queues_cleanup;
 	}
-
-	struct rte_mbuf *packets[PACKET_BURST];
-    while (1) {
-        for (int port_id = 0; port_id < dpdk_config.port_config.nb_ports; port_id++) {
-            for (int queue_id = 0; queue_id < dpdk_config.port_config.nb_queues; queue_id++) {
-                int nb_packets = rte_eth_rx_burst(port_id, queue_id, packets, PACKET_BURST);
-                if (nb_packets == 0) {
-                    continue;
-                }
-
-                DOCA_LOG_INFO("Received %d packets on port %d, queue %d", nb_packets, port_id, queue_id);
-            }
-        }
-    }
 
 	exit_status = EXIT_SUCCESS;
 
