@@ -34,12 +34,20 @@ static doca_error_t create_rss_pipe(struct doca_flow_port *port,
     uint16_t rss_queues[256];
     struct entries_status status;
 
-    for (uint16_t i = 0; i < nb_queues; i++)
-		rss_queues[i] = i;
-
 	memset(&match, 0, sizeof(match));
 	memset(&fwd, 0, sizeof(fwd));
     memset(&status, 0, sizeof(status));
+
+    // for (uint16_t i = 0; i < nb_queues; i++)
+	//   rss_queues[i] = i;
+    rss_queues[0] = 0;
+
+	/* RSS queue - send matched traffic to all the configured queues  */
+	fwd.type = DOCA_FLOW_FWD_RSS;
+	fwd.rss_queues = rss_queues;
+	fwd.rss_outer_flags = DOCA_FLOW_RSS_IPV4 | DOCA_FLOW_RSS_TCP;
+	// fwd.num_of_queues = nb_queues;
+	fwd.num_of_queues = 1;
 
 	result = doca_flow_pipe_cfg_create(&cfg, port);
 	if (result != DOCA_SUCCESS) {
@@ -57,12 +65,6 @@ static doca_error_t create_rss_pipe(struct doca_flow_port *port,
 		DOCA_LOG_ERR("Failed to set doca_flow_pipe_cfg match: %s", doca_error_get_descr(result));
 		goto destroy_pipe_cfg;
 	}
-
-	/* RSS queue - send matched traffic to all the configured queues  */
-	fwd.type = DOCA_FLOW_FWD_RSS;
-	fwd.rss_queues = rss_queues;
-	fwd.rss_inner_flags = DOCA_FLOW_RSS_IPV4 | DOCA_FLOW_RSS_TCP;
-	fwd.num_of_queues = nb_queues;
 
 	result = doca_flow_pipe_create(cfg, &fwd, NULL, pipe);
 	if (result != DOCA_SUCCESS) {
@@ -227,7 +229,9 @@ static doca_error_t add_hairpin_pipe_entry(struct doca_flow_port *port, struct d
 doca_error_t configure_static_pipes(int nb_queues)
 {
 	int nb_ports = 2;
-	struct flow_resources resource = {0};
+	struct flow_resources resource = {
+        .nr_counters = 1024,
+    };
 	uint32_t nr_shared_resources[SHARED_RESOURCE_NUM_VALUES] = {0};
 	struct doca_flow_port *ports[nb_ports];
 	struct doca_dev *dev_arr[nb_ports];
@@ -281,11 +285,5 @@ doca_error_t configure_static_pipes(int nb_queues)
 	}
 
     // Start a PMD on each port
-
-	DOCA_LOG_INFO("Wait few seconds for packets to arrive");
-	sleep(15);
-
-	result = stop_doca_flow_ports(nb_ports, ports);
-	doca_flow_destroy();
 	return result;
 }
