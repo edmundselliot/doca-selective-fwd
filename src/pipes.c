@@ -38,16 +38,14 @@ static doca_error_t create_rss_pipe(struct doca_flow_port *port,
 	memset(&fwd, 0, sizeof(fwd));
     memset(&status, 0, sizeof(status));
 
-    // for (uint16_t i = 0; i < nb_queues; i++)
-	//   rss_queues[i] = i;
-    rss_queues[0] = 0;
+    for (uint16_t i = 0; i < nb_queues; i++)
+	  rss_queues[i] = i;
 
 	/* RSS queue - send matched traffic to all the configured queues  */
 	fwd.type = DOCA_FLOW_FWD_RSS;
 	fwd.rss_queues = rss_queues;
 	fwd.rss_outer_flags = DOCA_FLOW_RSS_IPV4 | DOCA_FLOW_RSS_TCP;
-	// fwd.num_of_queues = nb_queues;
-	fwd.num_of_queues = 1;
+	fwd.num_of_queues = nb_queues;
 
 	result = doca_flow_pipe_cfg_create(&cfg, port);
 	if (result != DOCA_SUCCESS) {
