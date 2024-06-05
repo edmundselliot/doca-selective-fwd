@@ -297,17 +297,21 @@ doca_error_t run_app(int nb_queues)
                     continue;
                 }
                 // DOCA_LOG_INFO("Received %d packets on port %d, queue %d", nb_packets, port_id, queue_id);
-
-                // for demo only, assume it's an ipv4 TCP
                 for (int packet_idx = 0; packet_idx < nb_packets; packet_idx++) {
                     eth_hdr = rte_pktmbuf_mtod(packets[packet_idx], struct rte_ether_hdr *);
                     ipv4_hdr = (struct rte_ipv4_hdr *)((char *)eth_hdr + sizeof(struct rte_ether_hdr));
                     tcp_hdr = (struct rte_tcp_hdr *)((char *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
 
+                    if (eth_hdr->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4) ||
+                        ipv4_hdr->next_proto_id != IPPROTO_TCP) {
+                        DOCA_LOG_INFO("Non-IPv4 TCP packet, skipping");
+                        continue;
+                    }
+
                     inet_ntop(AF_INET, &ipv4_hdr->src_addr, src_addr, sizeof(src_addr));
                     inet_ntop(AF_INET, &ipv4_hdr->dst_addr, dst_addr, sizeof(dst_addr));
 
-                    printf("Offload %s:%d -> %s:%d? (y/n): ", src_addr, rte_be_to_cpu_16(tcp_hdr->src_port), dst_addr, rte_be_to_cpu_16(tcp_hdr->dst_port));
+                    printf("[P%d Q%d] Offload %s:%d -> %s:%d? (y/n): ", port_id, queue_id, src_addr, rte_be_to_cpu_16(tcp_hdr->src_port), dst_addr, rte_be_to_cpu_16(tcp_hdr->dst_port));
                     fflush(stdout);
                     unsigned char c;
                     scanf(" %c", &c);
@@ -321,6 +325,7 @@ doca_error_t run_app(int nb_queues)
                             tcp_hdr->src_port
                         );
                         DOCA_LOG_INFO("Flow offloaded");
+                        rte_eth_tx_burst(port_id ^ 1, 0, &packets[packet_idx], 1);
                     }
                     else {
                         DOCA_LOG_INFO("Flow will not be offloaded");
