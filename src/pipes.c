@@ -311,12 +311,13 @@ doca_error_t run_app(int nb_queues)
                     inet_ntop(AF_INET, &ipv4_hdr->src_addr, src_addr, sizeof(src_addr));
                     inet_ntop(AF_INET, &ipv4_hdr->dst_addr, dst_addr, sizeof(dst_addr));
 
-                    printf("[P%d Q%d] Offload %s:%d -> %s:%d? (y/n): ", port_id, queue_id, src_addr, rte_be_to_cpu_16(tcp_hdr->src_port), dst_addr, rte_be_to_cpu_16(tcp_hdr->dst_port));
+                    printf("[P%d Q%d] Offload %s:%d <-> %s:%d? (y/n): ", port_id, queue_id, src_addr, rte_be_to_cpu_16(tcp_hdr->src_port), dst_addr, rte_be_to_cpu_16(tcp_hdr->dst_port));
                     fflush(stdout);
                     unsigned char c;
                     scanf(" %c", &c);
                     if (c == 'y') {
-                        add_hairpin_pipe_entry(
+						// Offload both the flow and the reverse flow to hardware
+                        result = add_hairpin_pipe_entry(
                             ports[port_id],
                             hairpin_pipes[port_id],
                             ipv4_hdr->dst_addr,
@@ -324,6 +325,22 @@ doca_error_t run_app(int nb_queues)
                             tcp_hdr->dst_port,
                             tcp_hdr->src_port
                         );
+						if (result != DOCA_SUCCESS) {
+							DOCA_LOG_ERR("Failed to add hairpin pipe entry: %s", doca_error_get_descr(result));
+							continue;
+						}
+						result = add_hairpin_pipe_entry(
+                            ports[port_id^1],
+                            hairpin_pipes[port_id^1],
+                            ipv4_hdr->src_addr,
+                            ipv4_hdr->dst_addr,
+                            tcp_hdr->src_port,
+                            tcp_hdr->dst_port
+                        );
+						if (result != DOCA_SUCCESS) {
+							DOCA_LOG_ERR("Failed to add hairpin pipe entry: %s", doca_error_get_descr(result));
+							continue;
+						}
                         DOCA_LOG_INFO("Flow offloaded");
                         rte_eth_tx_burst(port_id ^ 1, 0, &packets[packet_idx], 1);
                     }
