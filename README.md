@@ -1,18 +1,49 @@
-# DOCA sample app
+# DOCA selective forwarding sample
 Sample application showing a simple forwarding application, which allows users to explicitly allow/deny flows.
 
-![selective-fwd-diagram](./doc/selective_fwd_diagram.png)
+##  Topology
+```
+ ┌─────────────────────────────────────────────────────────────────────┐
+ │x86 Host                                                             │
+ │      ┌──────────────────────────────────────────────────────────────┤
+ │      │Virtual machine                                               │
+ │      │                                                              │
+ │      │    ┌─────────────────────────────────────────────────────────┤
+ │      │    │DPDK PMD                                                 │
+ │      │    │                    ┌---allow/deny◄---┐                  │
+ │      │    │                    ¦                 ¦                  │
+ │      │    ├────────────────────¦───────┬─────────¦──────────────────┤
+ │      │    │VF 1                ¦       │VF 2     ¦                  │
+ │      │    │                    ¦       │         ¦                  │
+ │      │    │                    ¦       │         ¦                  │
+ │      │    │                    ¦       │         ¦                  │
+ ├──────┴────┼──────────────┬─────¦───────┼─────────¦────┬─────────────┤
+ │NVIDIA NIC │ VF 1 VNF rx  │ VF 1¦VNF tx │ VF 2 VNF¦rx  │ VF 2 VNF tx │
+ │           │ ┌─────┐      │     ¦-------┼--┐   ┌──┴──┐ │             │
+ │           │ │ rss │      │     ¦       │  ¦   │ rss │ │             │
+ │           │ └─────┘      │     ¦       │  ¦   └──▲──┘ │             │
+ │           │              │     ¦       │  ¦      ¦    │             │
+ │           │ ┌──────────┐ │     ¦       │ ┌┴──────┴──┐ │             │
+ │           │ │ hairpin  │ │     ¦       │ │ hairpin  │ │             │
+ │           └─┴──────────┴─┴─────▼───────┴─┴──────────┴─┴─────────────┤
+ │                                                                     │
+ └─────────────────────────────────────────────────────────────────────┘
+```
 
-Traffic can take one of three paths:
-1. RED: Path for a packet without an offloaded flow, which is then denied by the PMD.
-2. ORANGE: Path for a packet without an offloaded flow, which is then allowed by the PMD. The next packet for this flow will take the GREEN path.
-3. GREEN: Path for a packet with an offloaded flow, entirely in hardware.
+### Slow path
+Any packets without offloaded flows will get put in the VF's rx queues and rx_burst'ed by the PMD. The PMD will then make a decision on whether to allow the traffic or not.
+
+* If the PMD decides to allow the flow, the packet will be tx_bursted to the opposite VF's TX queues and put on the wire.
+* If the PMD decides to deny the flow, the packet will be dropped.
+
+### Fast path
+Any packets with offloaded flows will be directly hairpinned to the opposite VF's TX queues and will be put on the wire, without incurring any CPU overhead.
 
 ## Prerequisites
 * DOCA: `2.7.0085`
 * DPDK: `22.11.2404.0.11`
 
-Make sure they are in pkg-config path `pkg-config --modversion libdpdk doca`.
+Make sure they are in pkg-config path: `pkg-config --modversion libdpdk doca`.
 
 ## Building
 ```
@@ -21,8 +52,9 @@ ninja -C build
 ```
 
 ## Sample init
+With VF PCI decides `26:00.3` and `26.00.5`:
 ```
-./build/doca-sample -m0xf -a26:00.3,dv_flow_en=2,dv_xmeta_en=4 -a26:00.5,dv_flow_en=2,dv_xmeta_en=4
+./build/doca-selective-fwd -a26:00.3,dv_flow_en=2,dv_xmeta_en=4 -a26:00.5,dv_flow_en=2,dv_xmeta_en=4
 ```
 
 ## Running

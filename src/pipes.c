@@ -25,7 +25,7 @@
 
 #define PACKET_BURST 256
 
-DOCA_LOG_REGISTER(FLOW_HAIRPIN_VNF);
+DOCA_LOG_REGISTER(SELECTIVE_FWD::PIPES);
 
 static doca_error_t create_rss_pipe(struct doca_flow_port *port,
 				    struct doca_flow_pipe **pipe,
@@ -234,14 +234,11 @@ add_hairpin_pipe_entry(
 doca_error_t run_app(int nb_queues)
 {
 	int nb_ports = 2;
-	struct flow_resources resource = {
-        .nr_counters = 1024,
-    };
+	struct flow_resources resource = {};
 	uint32_t nr_shared_resources[SHARED_RESOURCE_NUM_VALUES] = {0};
 	struct doca_flow_port *ports[nb_ports];
 	struct doca_dev *dev_arr[nb_ports];
 	doca_error_t result;
-	int port_id;
 
 	result = init_doca_flow(nb_queues, "vnf,hws", &resource, nr_shared_resources);
 	if (result != DOCA_SUCCESS) {
@@ -257,12 +254,18 @@ doca_error_t run_app(int nb_queues)
 		return result;
 	}
 
-    // On each port:
-    //   1. Add an RSS pipe and a match-all entry on the RSS pipe
-    //   2. Add a hairpin pipe, which in miss, will forward packets to the RSS pipe
+    /*
+	STATIC CONFIGURATION
+
+	On each port
+       1. Add an RSS pipe and a match-all entry on the RSS pipe to forward packets to RSS
+       2. Add a hairpin pipe with no entries in it. The entries will be dynamically added later.
+			- On miss, the hairpin pipe will forward packets to the RSS pipe.
+			- On hit, the hairpin pipe entry will hairpin packets to the other port's tx.
+	*/
     struct doca_flow_pipe *rss_pipes[nb_ports];
     struct doca_flow_pipe *hairpin_pipes[nb_ports];
-	for (port_id = 0; port_id < nb_ports; port_id++) {
+	for (int port_id = 0; port_id < nb_ports; port_id++) {
 
         result = create_rss_pipe(ports[port_id], &rss_pipes[port_id], nb_queues);
         if (result != DOCA_SUCCESS) {
@@ -281,7 +284,13 @@ doca_error_t run_app(int nb_queues)
 		}
 	}
 
-    // Listen for packets, when you see packets, prompt for allow/deny
+
+	/*
+	DYNAMIC CONFIGURATION
+
+	In a real application, a user would start a PMD here listening on each queue. For the sake of a simple demo, we
+	instead query every packet received on each queue and ask the user if they want to offload the flow to hardware.
+	*/
     struct rte_mbuf *packets[PACKET_BURST];
     struct rte_ether_hdr *eth_hdr;
     struct rte_ipv4_hdr *ipv4_hdr;
@@ -296,7 +305,7 @@ doca_error_t run_app(int nb_queues)
                 if (nb_packets == 0) {
                     continue;
                 }
-                // DOCA_LOG_INFO("Received %d packets on port %d, queue %d", nb_packets, port_id, queue_id);
+
                 for (int packet_idx = 0; packet_idx < nb_packets; packet_idx++) {
                     eth_hdr = rte_pktmbuf_mtod(packets[packet_idx], struct rte_ether_hdr *);
                     ipv4_hdr = (struct rte_ipv4_hdr *)((char *)eth_hdr + sizeof(struct rte_ether_hdr));
@@ -326,7 +335,7 @@ doca_error_t run_app(int nb_queues)
                             tcp_hdr->src_port
                         );
 						if (result != DOCA_SUCCESS) {
-							DOCA_LOG_ERR("Failed to add hairpin pipe entry: %s", doca_error_get_descr(result));
+							DOCA_LOG_ERR("Failed to add main hairpin pipe entry: %s", doca_error_get_descr(result));
 							continue;
 						}
 						result = add_hairpin_pipe_entry(
@@ -338,7 +347,7 @@ doca_error_t run_app(int nb_queues)
                             tcp_hdr->dst_port
                         );
 						if (result != DOCA_SUCCESS) {
-							DOCA_LOG_ERR("Failed to add hairpin pipe entry: %s", doca_error_get_descr(result));
+							DOCA_LOG_ERR("Failed to add reverse hairpin pipe entry: %s", doca_error_get_descr(result));
 							continue;
 						}
                         DOCA_LOG_INFO("Flow offloaded");

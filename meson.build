@@ -18,4 +18,4 @@ app_inc_dirs = [
 	include_directories('src'),
 ]
 
-executable('doca-sample', source_files, dependencies: deps, include_directories: app_inc_dirs)
+executable('doca-selective-fwd', source_files, dependencies: deps, include_directories: app_inc_dirs)

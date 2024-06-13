@@ -20,7 +20,7 @@
 #include <dpdk_utils.h>
 
 
-DOCA_LOG_REGISTER(FLOW_HAIRPIN_VNF::MAIN);
+DOCA_LOG_REGISTER(SELECTIVE_FWD::MAIN);
 
 /* Sample's Logic */
 doca_error_t run_app(int nb_queues);
