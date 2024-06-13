@@ -1,6 +1,13 @@
 # DOCA sample app
 Sample application showing a simple forwarding application, which allows users to explicitly allow/deny flows.
 
+![selective-fwd-diagram](./doc/selective_fwd_diagram.png)
+
+Traffic can take one of three paths:
+1. RED: Path for a packet without an offloaded flow, which is then denied by the PMD.
+2. ORANGE: Path for a packet without an offloaded flow, which is then allowed by the PMD. The next packet for this flow will take the GREEN path.
+3. GREEN: Path for a packet with an offloaded flow, entirely in hardware.
+
 ## Prerequisites
 * DOCA: `2.7.0085`
 * DPDK: `22.11.2404.0.11`
