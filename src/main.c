@@ -11,19 +11,60 @@
  *
  */
 
-#include <stdlib.h>
-
-#include <doca_argp.h>
-#include <doca_flow.h>
-#include <doca_log.h>
-
-#include <dpdk_utils.h>
-
+#include "selective_fwd.h"
 
 DOCA_LOG_REGISTER(SELECTIVE_FWD::MAIN);
 
-/* Sample's Logic */
-doca_error_t run_app(int nb_queues);
+/*
+ * Initialize doca, doca ports, create static configuration, and then start a PMD
+ *
+ * @nb_queues [in]: number of queues the sample will use
+ * @return: DOCA_SUCCESS on success and DOCA_ERROR otherwise.
+ */
+doca_error_t run_app(int nb_queues)
+{
+	struct flow_resources resource = {};
+	uint32_t nr_shared_resources[SHARED_RESOURCE_NUM_VALUES] = {0};
+	struct doca_flow_port *ports[NUM_PORTS];
+	struct doca_flow_pipe *hairpin_pipes[NUM_PORTS];
+	struct doca_dev *dev_arr[NUM_PORTS];
+	doca_error_t result;
+
+	result = init_doca_flow(nb_queues, "vnf,hws", &resource, nr_shared_resources);
+	if (result != DOCA_SUCCESS) {
+		DOCA_LOG_ERR("Failed to init DOCA Flow: %s", doca_error_get_descr(result));
+		return result;
+	}
+
+	memset(dev_arr, 0, sizeof(struct doca_dev *) * NUM_PORTS);
+	result = init_doca_flow_ports(NUM_PORTS, ports, true, dev_arr);
+	if (result != DOCA_SUCCESS) {
+		DOCA_LOG_ERR("Failed to init DOCA ports: %s", doca_error_get_descr(result));
+		doca_flow_destroy();
+		return result;
+	}
+
+	// STATIC CONFIGURATION
+	// 	On each port
+	// 	1. Add an RSS pipe and a match-all entry on the RSS pipe to forward packets to RSS
+	// 	2. Add a hairpin pipe with no entries in it. The entries will be dynamically added later.
+	// 		- On miss, the hairpin pipe will forward packets to the RSS pipe.
+	// 		- On hit, the hairpin pipe entry will hairpin packets to the other port's tx.
+	result = configure_static_pipes(ports, hairpin_pipes);
+	if (result != DOCA_SUCCESS) {
+		DOCA_LOG_ERR("Failed to configure static pipes: %s", doca_error_get_descr(result));
+		stop_doca_flow_ports(NUM_PORTS, ports);
+		doca_flow_destroy();
+		return result;
+	}
+
+	// DYNAMIC CONFIGURATION
+	//  Start a PMD which will dynamically add entries to pipes as required.
+	start_pmd(ports, hairpin_pipes, nb_queues);
+
+	return result;
+}
+
 
 /*
  * Sample main function
@@ -58,7 +99,7 @@ int main(int argc, char **argv)
 
 	DOCA_LOG_INFO("Starting the sample");
 
-	result = doca_argp_init("doca_flow_hairpin_vnf", NULL);
+	result = doca_argp_init("doca_selective_fwd", NULL);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to init ARGP resources: %s", doca_error_get_descr(result));
 		goto sample_exit;

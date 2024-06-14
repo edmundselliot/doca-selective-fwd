@@ -5,6 +5,7 @@ add_project_arguments('-DDOCA_ALLOW_EXPERIMENTAL_API', language: 'c')
 source_files = [
 	'src/main.c',
 	'src/pipes.c',
+	'src/pmd.c',
 	'src/flow_common.c',
     'src/dpdk_utils.c',
 ]

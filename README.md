@@ -52,7 +52,7 @@ ninja -C build
 ```
 
 ## Sample init
-With VF PCI decides `26:00.3` and `26.00.5`:
+With VF PCIs `26:00.3` and `26.00.5`:
 ```
 ./build/doca-selective-fwd -a26:00.3,dv_flow_en=2,dv_xmeta_en=4 -a26:00.5,dv_flow_en=2,dv_xmeta_en=4
 ```
