@@ -30,6 +30,8 @@ doca_error_t run_app(int nb_queues)
 	struct doca_dev *dev_arr[NUM_PORTS];
 	doca_error_t result;
 
+	resource.nr_counters = MAX_FLOWS_PER_PORT * NUM_PORTS;
+
 	result = init_doca_flow(nb_queues, "vnf,hws", &resource, nr_shared_resources);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to init DOCA Flow: %s", doca_error_get_descr(result));

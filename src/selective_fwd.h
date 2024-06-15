@@ -22,15 +22,26 @@
 #include <doca_argp.h>
 #include <doca_buf_inventory.h>
 
-#include "dpdk_utils.h"
-#include "flow_common.h"
-
+#include <time.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <pthread.h>
+
+#include "dpdk_utils.h"
+#include "flow_common.h"
 
 #define NUM_PORTS 2
-#define PACKET_BURST 256
+#define MAX_FLOWS_PER_PORT 4096
+#define PACKET_BURST_SZ 256
+// 2 hours, default on linux
+#define TCP_KEEPALIVE_INTERVAL_SEC 5
+// small buffer to account for jitter
+#define FLOW_TIMEOUT_SEC (TCP_KEEPALIVE_INTERVAL_SEC + 5)
+// amount of time between aging handle calls
+#define AGING_HANDLE_INTERVAL_SEC 5
+
 
 void
 start_pmd(

@@ -44,6 +44,11 @@ void check_for_valid_entry(struct doca_flow_pipe_entry *entry,
 		return;
 	if (status != DOCA_FLOW_ENTRY_STATUS_SUCCESS)
 		entry_status->failure = true; /* set failure to true if processing failed */
+
+	if (op == DOCA_FLOW_ENTRY_OP_AGED) {
+		doca_flow_pipe_rm_entry(pipe_queue, DOCA_FLOW_NO_WAIT, entry);
+		DOCA_LOG_INFO("Entry aged out and removed");
+	}
 	entry_status->nb_processed++;
 }
 

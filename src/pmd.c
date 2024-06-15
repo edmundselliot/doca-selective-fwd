@@ -15,6 +15,26 @@
 
 DOCA_LOG_REGISTER(SELECTIVE_FWD::PMD);
 
+void *aging_loop(
+    void *arg
+)
+{
+    struct doca_flow_port** ports = (struct doca_flow_port**)arg;
+    int nb_flows_removed = 0;
+
+    while (1) {
+        for (int port_id = 0; port_id < NUM_PORTS; port_id++) {
+            nb_flows_removed = doca_flow_aging_handle(ports[port_id], 0, 1000 /*1 ms*/, 0);
+            if (nb_flows_removed > 0) {
+                DOCA_LOG_INFO("Aging removed %d flows", nb_flows_removed);
+            }
+        }
+        sleep(AGING_HANDLE_INTERVAL_SEC);
+    }
+
+    return NULL;
+}
+
 /*
  * Start the PMD
  *   In a real application, a user would start a PMD here listening on each queue. For the sake of a simple demo, we
@@ -30,19 +50,25 @@ void start_pmd(
     uint32_t nb_queues
 )
 {
-    struct rte_mbuf *packets[PACKET_BURST];
+    struct rte_mbuf *packets[PACKET_BURST_SZ];
     struct rte_ether_hdr *eth_hdr;
     struct rte_ipv4_hdr *ipv4_hdr;
     struct rte_tcp_hdr *tcp_hdr;
     char src_addr[INET_ADDRSTRLEN];
     char dst_addr[INET_ADDRSTRLEN];
     doca_error_t result;
+    pthread_t aging_thread_id;
+
+    if (pthread_create(&aging_thread_id, NULL, aging_loop, (void *)ports) != 0) {
+        DOCA_LOG_ERR("Failed to create aging thread");
+        return;
+    }
 
     DOCA_LOG_INFO("Setup done. Starting PMD");
     while (1) {
         for (int port_id = 0; port_id < NUM_PORTS; port_id++) {
             for (int queue_id = 0; queue_id < nb_queues; queue_id++) {
-                int nb_packets = rte_eth_rx_burst(port_id, queue_id, packets, PACKET_BURST);
+                int nb_packets = rte_eth_rx_burst(port_id, queue_id, packets, PACKET_BURST_SZ);
                 if (nb_packets == 0) {
                     continue;
                 }
@@ -91,8 +117,8 @@ void start_pmd(
 							DOCA_LOG_ERR("Failed to add reverse hairpin pipe entry: %s", doca_error_get_descr(result));
 							continue;
 						}
-                        rte_eth_tx_burst(port_id ^1, queue_id, &packets[packet_idx], 1);
 
+                        rte_eth_tx_burst(port_id ^1, queue_id, &packets[packet_idx], 1);
                         DOCA_LOG_INFO("Packet forwarded and flow offloaded");
                     }
                     else {
