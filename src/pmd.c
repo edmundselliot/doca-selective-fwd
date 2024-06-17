@@ -15,18 +15,27 @@
 
 DOCA_LOG_REGISTER(SELECTIVE_FWD::PMD);
 
+/*
+ * Aging loop - garbage collector for stale flows
+ *
+ * @arg [in]: array of ports
+ */
 void *aging_loop(
     void *arg
 )
 {
     struct doca_flow_port** ports = (struct doca_flow_port**)arg;
     int nb_flows_removed = 0;
+    doca_error_t result;
 
     while (1) {
         for (int port_id = 0; port_id < NUM_PORTS; port_id++) {
             nb_flows_removed = doca_flow_aging_handle(ports[port_id], 0, 1000 /*1 ms*/, 0);
             if (nb_flows_removed > 0) {
-                DOCA_LOG_INFO("Aging removed %d flows", nb_flows_removed);
+                result = doca_flow_entries_process(ports[port_id], 0, DEFAULT_TIMEOUT_US, 0);
+                if (result != DOCA_SUCCESS) {
+                    DOCA_LOG_WARN("Failed to remove stale pipe entries: %s", doca_error_get_descr(result));
+                }
             }
         }
         sleep(AGING_HANDLE_INTERVAL_SEC);

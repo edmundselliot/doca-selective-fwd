@@ -35,13 +35,11 @@
 #define NUM_PORTS 2
 #define MAX_FLOWS_PER_PORT 4096
 #define PACKET_BURST_SZ 256
-// 2 hours, default on linux
-#define TCP_KEEPALIVE_INTERVAL_SEC 5
-// small buffer to account for jitter
-#define FLOW_TIMEOUT_SEC (TCP_KEEPALIVE_INTERVAL_SEC + 5)
-// amount of time between aging handle calls
-#define AGING_HANDLE_INTERVAL_SEC 5
 
+// Duration before a flow is considered stale
+#define FLOW_TIMEOUT_SEC 30
+// Interval between calls to remove stale flows
+#define AGING_HANDLE_INTERVAL_SEC 5
 
 void
 start_pmd(
