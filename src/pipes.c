@@ -114,12 +114,14 @@ static doca_error_t create_hairpin_pipe(
 	struct doca_flow_actions actions, *actions_arr[NB_ACTIONS_ARR];
 	struct doca_flow_fwd fwd, fwd_miss;
 	struct doca_flow_pipe_cfg *pipe_cfg;
+	struct doca_flow_monitor monitor;
 	doca_error_t result;
 
 	memset(&match, 0, sizeof(match));
 	memset(&actions, 0, sizeof(actions));
 	memset(&fwd, 0, sizeof(fwd));
 	memset(&fwd_miss, 0, sizeof(fwd_miss));
+	memset(&monitor, 0, sizeof(monitor));
 
 	/* 5 tuple match */
 	match.parser_meta.outer_l4_type = DOCA_FLOW_L4_META_TCP;
@@ -132,6 +134,8 @@ static doca_error_t create_hairpin_pipe(
 	match.outer.tcp.l4_port.dst_port = 0xffff;
 
 	actions_arr[0] = &actions;
+
+	monitor.aging_sec = FLOW_TIMEOUT_SEC;
 
 	result = doca_flow_pipe_cfg_create(&pipe_cfg, port);
 	if (result != DOCA_SUCCESS) {
@@ -152,6 +156,12 @@ static doca_error_t create_hairpin_pipe(
 	result = doca_flow_pipe_cfg_set_actions(pipe_cfg, actions_arr, NULL, NULL, NB_ACTIONS_ARR);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to set doca_flow_pipe_cfg actions: %s", doca_error_get_descr(result));
+		goto destroy_pipe_cfg;
+	}
+
+	result = doca_flow_pipe_cfg_set_monitor(pipe_cfg, &monitor);
+	if (result != DOCA_SUCCESS) {
+		DOCA_LOG_ERR("Failed to set doca_flow_pipe_cfg monitor: %s", doca_error_get_descr(result));
 		goto destroy_pipe_cfg;
 	}
 

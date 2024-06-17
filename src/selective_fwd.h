@@ -22,15 +22,24 @@
 #include <doca_argp.h>
 #include <doca_buf_inventory.h>
 
-#include "dpdk_utils.h"
-#include "flow_common.h"
-
+#include <time.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <pthread.h>
+
+#include "dpdk_utils.h"
+#include "flow_common.h"
 
 #define NUM_PORTS 2
-#define PACKET_BURST 256
+#define MAX_FLOWS_PER_PORT 4096
+#define PACKET_BURST_SZ 256
+
+// Duration before a flow is considered stale
+#define FLOW_TIMEOUT_SEC 30
+// Interval between calls to remove stale flows
+#define AGING_HANDLE_INTERVAL_SEC 5
 
 void
 start_pmd(
