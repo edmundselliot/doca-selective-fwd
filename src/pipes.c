@@ -166,8 +166,8 @@ static doca_error_t create_hairpin_pipe(
 	}
 
 	/* forwarding traffic to other port */
-	fwd.type = DOCA_FLOW_FWD_PORT;
-	fwd.port_id = port_id ^ 1;
+	fwd.type = DOCA_FLOW_FWD_RSS;
+	fwd.num_of_queues = 0xffffffff;
 
     fwd_miss.type = DOCA_FLOW_FWD_PIPE;
     fwd_miss.next_pipe = pipe_fwd_miss;
@@ -191,7 +191,9 @@ destroy_pipe_cfg:
  */
 doca_error_t
 add_hairpin_pipe_entry(
-    struct doca_flow_port *port,
+    struct doca_flow_port* ports[NUM_PORTS],
+	int port_id_in,
+	uint16_t hairpin_queue,
     struct doca_flow_pipe *pipe,
     doca_be32_t dst_ip_addr,
     doca_be32_t src_ip_addr,
@@ -202,8 +204,8 @@ add_hairpin_pipe_entry(
 	struct doca_flow_match match;
 	struct doca_flow_actions actions;
 	struct doca_flow_pipe_entry *entry;
-	doca_error_t result;
     struct entries_status status;
+	doca_error_t result;
 
 	/* example 5-tuple to forward */
 	memset(&match, 0, sizeof(match));
@@ -215,13 +217,19 @@ add_hairpin_pipe_entry(
 	match.outer.tcp.l4_port.dst_port = dst_port;
 	match.outer.tcp.l4_port.src_port = src_port;
 
-	result = doca_flow_pipe_add_entry(0, pipe, &match, &actions, NULL, NULL, 0, &status, &entry);
+	struct doca_flow_fwd fwd = {};
+	fwd.type = DOCA_FLOW_FWD_RSS;
+	fwd.rss_queues = &hairpin_queue;
+	fwd.num_of_queues = 1;
+	fwd.rss_outer_flags = DOCA_FLOW_RSS_IPV4 | DOCA_FLOW_RSS_TCP;
+
+	result = doca_flow_pipe_add_entry(0, pipe, &match, &actions, NULL, &fwd, 0, &status, &entry);
 	if (result != DOCA_SUCCESS) {
         DOCA_LOG_ERR("Failed to add entry: %s", doca_error_get_descr(result));
 		return result;
     }
 
-    result = doca_flow_entries_process(port, 0, DEFAULT_TIMEOUT_US, 1);
+    result = doca_flow_entries_process(ports[port_id_in], 0, DEFAULT_TIMEOUT_US, 1);
     if (result != DOCA_SUCCESS) {
         DOCA_LOG_ERR("Failed to process entries: %s", doca_error_get_descr(result));
         return result;
@@ -232,10 +240,13 @@ add_hairpin_pipe_entry(
         return DOCA_ERROR_BAD_STATE;
     }
 
+	DOCA_LOG_INFO("Added a hairpin pipe entry to port %d on queue %d", port_id_in, hairpin_queue);
+
 	return DOCA_SUCCESS;
 }
 
 doca_error_t configure_static_pipes(
+	struct application_dpdk_config *app_cfg,
 	struct doca_flow_port *ports[NUM_PORTS],
 	struct doca_flow_pipe *hairpin_pipes[NUM_PORTS]
 )
@@ -245,7 +256,7 @@ doca_error_t configure_static_pipes(
 	struct doca_flow_pipe *rss_pipes[NUM_PORTS];
 	for (int port_id = 0; port_id < NUM_PORTS; port_id++) {
 
-		result = create_rss_pipe(ports[port_id], &rss_pipes[port_id], 2);
+		result = create_rss_pipe(ports[port_id], &rss_pipes[port_id], app_cfg->port_config.nb_queues);
 		if (result != DOCA_SUCCESS) {
 			DOCA_LOG_ERR("Failed to create RSS pipe: %s", doca_error_get_descr(result));
 			stop_doca_flow_ports(NUM_PORTS, ports);
@@ -264,4 +275,3 @@ doca_error_t configure_static_pipes(
 
 	return result;
 }
-

@@ -54,6 +54,7 @@ void *aging_loop(
  * @nb_queues [in]: number of queues
  */
 void start_pmd(
+    struct application_dpdk_config *app_cfg,
     struct doca_flow_port* ports[NUM_PORTS],
     struct doca_flow_pipe* hairpin_pipes[NUM_PORTS],
     uint32_t nb_queues
@@ -75,9 +76,9 @@ void start_pmd(
 
     DOCA_LOG_INFO("Setup done. Starting PMD");
     while (1) {
-        for (int port_id = 0; port_id < NUM_PORTS; port_id++) {
+        for (int port_id_in = 0; port_id_in < NUM_PORTS; port_id_in++) {
             for (int queue_id = 0; queue_id < nb_queues; queue_id++) {
-                int nb_packets = rte_eth_rx_burst(port_id, queue_id, packets, PACKET_BURST_SZ);
+                int nb_packets = rte_eth_rx_burst(port_id_in, queue_id, packets, PACKET_BURST_SZ);
                 if (nb_packets == 0) {
                     continue;
                 }
@@ -96,43 +97,39 @@ void start_pmd(
                     inet_ntop(AF_INET, &ipv4_hdr->src_addr, src_addr, sizeof(src_addr));
                     inet_ntop(AF_INET, &ipv4_hdr->dst_addr, dst_addr, sizeof(dst_addr));
 
-                    printf("[P%d Q%d] Allow %s:%d <-> %s:%d? (y/n): ", port_id, queue_id, src_addr, rte_be_to_cpu_16(tcp_hdr->src_port), dst_addr, rte_be_to_cpu_16(tcp_hdr->dst_port));
-                    fflush(stdout);
+                    printf("[P%d Q%d] Allow %s:%d <-> %s:%d? (s/p/n): ", port_id_in, queue_id, src_addr, rte_be_to_cpu_16(tcp_hdr->src_port), dst_addr, rte_be_to_cpu_16(tcp_hdr->dst_port));
+                    uint16_t dest_port;
                     unsigned char c;
                     scanf(" %c", &c);
-                    if (c == 'y') {
-						// Offload both the flow and the reverse flow to hardware
-                        result = add_hairpin_pipe_entry(
-                            ports[port_id],
-                            hairpin_pipes[port_id],
-                            ipv4_hdr->dst_addr,
-                            ipv4_hdr->src_addr,
-                            tcp_hdr->dst_port,
-                            tcp_hdr->src_port
-                        );
-						if (result != DOCA_SUCCESS) {
-							DOCA_LOG_ERR("Failed to add main hairpin pipe entry: %s", doca_error_get_descr(result));
-							continue;
-						}
-						result = add_hairpin_pipe_entry(
-                            ports[port_id^1],
-                            hairpin_pipes[port_id^1],
-                            ipv4_hdr->src_addr,
-                            ipv4_hdr->dst_addr,
-                            tcp_hdr->src_port,
-                            tcp_hdr->dst_port
-                        );
-						if (result != DOCA_SUCCESS) {
-							DOCA_LOG_ERR("Failed to add reverse hairpin pipe entry: %s", doca_error_get_descr(result));
-							continue;
-						}
-
-                        rte_eth_tx_burst(port_id ^1, queue_id, &packets[packet_idx], 1);
-                        DOCA_LOG_INFO("Packet forwarded and flow offloaded");
+                    if (c == 's') {
+                        dest_port = port_id_in;
+                    }
+                    else if (c == 'p') {
+                        dest_port = port_id_in^1;
                     }
                     else {
                         DOCA_LOG_INFO("Packet dropped");
+                        continue;
                     }
+
+                    // Offload the flow to hardware
+                    result = add_hairpin_pipe_entry(
+                        ports,
+                        port_id_in,
+                        app_cfg->hairpin_queues[port_id_in][dest_port],
+                        hairpin_pipes[port_id_in],
+                        ipv4_hdr->dst_addr,
+                        ipv4_hdr->src_addr,
+                        tcp_hdr->dst_port,
+                        tcp_hdr->src_port
+                    );
+                    if (result != DOCA_SUCCESS) {
+                        DOCA_LOG_ERR("Failed to add main hairpin pipe entry: %s", doca_error_get_descr(result));
+                        continue;
+                    }
+
+                    rte_eth_tx_burst(dest_port, queue_id, &packets[packet_idx], 1);
+                    DOCA_LOG_INFO("Packet forwarded and flow offloaded");
                 }
             }
         }

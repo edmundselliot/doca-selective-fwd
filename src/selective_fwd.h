@@ -43,6 +43,7 @@
 
 void
 start_pmd(
+    struct application_dpdk_config *app_cfg,
     struct doca_flow_port* ports[NUM_PORTS],
     struct doca_flow_pipe* hairpin_pipes[NUM_PORTS],
     uint32_t queues_per_port
@@ -50,16 +51,19 @@ start_pmd(
 
 doca_error_t
 add_hairpin_pipe_entry(
-    struct doca_flow_port *port,
+    struct doca_flow_port* ports[NUM_PORTS],
+	int port_id_in,
+	uint16_t hairpin_queue,
     struct doca_flow_pipe *pipe,
     doca_be32_t dst_ip_addr,
     doca_be32_t src_ip_addr,
     doca_be16_t dst_port,
     doca_be16_t src_port
-);
+    );
 
 doca_error_t
 configure_static_pipes(
+    struct application_dpdk_config *app_cfg,
 	struct doca_flow_port *ports[NUM_PORTS],
 	struct doca_flow_pipe *hairpin_pipes[NUM_PORTS]
 );
