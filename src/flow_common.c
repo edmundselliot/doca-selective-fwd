@@ -53,6 +53,7 @@ void check_for_valid_entry(struct doca_flow_pipe_entry *entry,
 
 	case DOCA_FLOW_ENTRY_OP_ADD:
 	case DOCA_FLOW_ENTRY_OP_DEL:
+		break;
 	default:
 		DOCA_LOG_DBG("Entry 0x%lx, op code %d", (uint64_t)entry, op);
 		break;
