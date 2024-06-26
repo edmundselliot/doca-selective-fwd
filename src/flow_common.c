@@ -48,10 +48,11 @@ void check_for_valid_entry(struct doca_flow_pipe_entry *entry,
 	switch (op) {
 
 	case DOCA_FLOW_ENTRY_OP_AGED:
-		doca_flow_pipe_rm_entry(pipe_queue, DOCA_FLOW_NO_WAIT, entry);
+		doca_flow_pipe_remove_entry(pipe_queue, DOCA_FLOW_NO_WAIT, entry);
 
 	case DOCA_FLOW_ENTRY_OP_ADD:
 	case DOCA_FLOW_ENTRY_OP_DEL:
+		break;
 	default:
 		DOCA_LOG_INFO("Entry 0x%lx, op code %d", (uint64_t)entry, op);
 		break;
