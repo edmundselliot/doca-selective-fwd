@@ -53,7 +53,8 @@ doca_error_t
 add_hairpin_pipe_entry(
     struct doca_flow_port* ports[NUM_PORTS],
 	int port_id_in,
-	uint16_t hairpin_queue,
+	uint16_t base_hairpin_q,
+	uint8_t hairpin_q_len,
     struct doca_flow_pipe *pipe,
     doca_be32_t dst_ip_addr,
     doca_be32_t src_ip_addr,

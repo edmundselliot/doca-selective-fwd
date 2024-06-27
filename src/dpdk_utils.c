@@ -156,9 +156,13 @@ static doca_error_t setup_hairpin_queues(struct application_dpdk_config *app_con
 		.peers[0] = {peer_port_id, 0},
 	};
 
-	DOCA_LOG_INFO("Setting up hairpin queues from %u to %u", port_id, peer_port_id);
-	// update this for more than 1 queue
+	DOCA_LOG_DBG("Setting up hairpin queues %d-%d for %u->%u",
+		reserved_hairpin_q_list[0],
+		reserved_hairpin_q_list[0] + hairpin_queue_len - 1,
+		port_id, peer_port_id);
+
 	app_config->hairpin_queues[port_id][peer_port_id] = reserved_hairpin_q_list[0];
+	app_config->hairpin_q_count = hairpin_queue_len;
 
 	for (hairpin_q = 0; hairpin_q < hairpin_queue_len; hairpin_q++) {
 		// TX
@@ -355,7 +359,7 @@ static doca_error_t port_init(struct rte_mempool *mbuf_pool, uint8_t port, struc
 			/* Hairpin to both self and peer */
 			assert((nb_hairpin_queues % 2) == 0);
 			for (queue_index = 0; queue_index < nb_hairpin_queues / 2; queue_index++)
-				rss_queue_list[queue_index] = app_config->port_config.nb_queues + queue_index * 2;
+				rss_queue_list[queue_index] = app_config->port_config.nb_queues + queue_index;
 			result = setup_hairpin_queues(app_config, port, port, rss_queue_list, nb_hairpin_queues / 2);
 			if (result != DOCA_SUCCESS) {
 				DOCA_LOG_ERR("Cannot hairpin self port %" PRIu8 ", ret: %s",
@@ -364,7 +368,7 @@ static doca_error_t port_init(struct rte_mempool *mbuf_pool, uint8_t port, struc
 				return result;
 			}
 			for (queue_index = 0; queue_index < nb_hairpin_queues / 2; queue_index++)
-				rss_queue_list[queue_index] = app_config->port_config.nb_queues + queue_index * 2 + 1;
+				rss_queue_list[queue_index] = app_config->port_config.nb_queues + (nb_hairpin_queues / 2) + queue_index;
 			result = setup_hairpin_queues(app_config, port, port ^ 1, rss_queue_list, nb_hairpin_queues / 2);
 			if (result != DOCA_SUCCESS) {
 				DOCA_LOG_ERR("Cannot hairpin peer port %" PRIu8 ", ret: %s",

@@ -193,7 +193,8 @@ doca_error_t
 add_hairpin_pipe_entry(
     struct doca_flow_port* ports[NUM_PORTS],
 	int port_id_in,
-	uint16_t hairpin_queue,
+	uint16_t base_hairpin_q,
+	uint8_t hairpin_q_len,
     struct doca_flow_pipe *pipe,
     doca_be32_t dst_ip_addr,
     doca_be32_t src_ip_addr,
@@ -217,10 +218,14 @@ add_hairpin_pipe_entry(
 	match.outer.tcp.l4_port.dst_port = dst_port;
 	match.outer.tcp.l4_port.src_port = src_port;
 
+	uint16_t hairpin_queues[hairpin_q_len];
+	for (uint16_t i = 0; i < hairpin_q_len; i++)
+		hairpin_queues[i] = base_hairpin_q + i;
+
 	struct doca_flow_fwd fwd = {};
 	fwd.type = DOCA_FLOW_FWD_RSS;
-	fwd.rss_queues = &hairpin_queue;
-	fwd.num_of_queues = 1;
+	fwd.rss_queues = (uint16_t *)&hairpin_queues;
+	fwd.num_of_queues = hairpin_q_len;
 	fwd.rss_outer_flags = DOCA_FLOW_RSS_IPV4 | DOCA_FLOW_RSS_TCP;
 
 	result = doca_flow_pipe_add_entry(0, pipe, &match, &actions, NULL, &fwd, 0, &status, &entry);
@@ -240,8 +245,8 @@ add_hairpin_pipe_entry(
         return DOCA_ERROR_BAD_STATE;
     }
 
-	DOCA_LOG_INFO("Added a hairpin pipe entry to port %d on queue %d", port_id_in, hairpin_queue);
-
+	DOCA_LOG_DBG("Added a hairpin pipe entry to port %d on queues %d-%d",
+		port_id_in, base_hairpin_q, base_hairpin_q + hairpin_q_len - 1);
 	return DOCA_SUCCESS;
 }
 

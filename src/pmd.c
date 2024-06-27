@@ -117,6 +117,7 @@ void start_pmd(
                         ports,
                         port_id_in,
                         app_cfg->hairpin_queues[port_id_in][dest_port],
+                        app_cfg->hairpin_q_count,
                         hairpin_pipes[port_id_in],
                         ipv4_hdr->dst_addr,
                         ipv4_hdr->src_addr,

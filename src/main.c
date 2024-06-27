@@ -46,19 +46,6 @@ doca_error_t run_app(struct application_dpdk_config *app_cfg)
 		return result;
 	}
 
-	printf("Hairpin queues for %d ports:\n", NUM_PORTS);
-	printf("P");
-	for (int i = 0; i < NUM_PORTS; i++) {
-		printf(" %2d", i);
-	}
-	for (int i = 0; i < NUM_PORTS; i++) {
-		printf("\n%d", i);
-		for (int j = 0; j < NUM_PORTS; j++) {
-			printf(" %2u", app_cfg->hairpin_queues[i][j]);
-		}
-	}
-	printf("\n");
-
 	// STATIC CONFIGURATION
 	// 	On each port
 	// 	1. Add an RSS pipe and a match-all entry on the RSS pipe to forward packets to RSS
@@ -96,7 +83,7 @@ int main(int argc, char **argv)
 	struct application_dpdk_config dpdk_config = {
 		.port_config.nb_ports = 2,
 		.port_config.nb_queues = 2,
-		.port_config.nb_hairpin_q = 2,
+		.port_config.nb_hairpin_q = 4, // total per-port
 		.port_config.self_hairpin = true,
 	};
 
