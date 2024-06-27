@@ -32,6 +32,7 @@ extern "C" {
 #define TX_RING_SIZE 1024    /* TX ring size */
 #define NUM_MBUFS (8 * 1024) /* Number of mbufs to be allocated in the mempool */
 #define MBUF_CACHE_SIZE 250  /* mempool cache size */
+#define MAX_PORTS 16         /* Maximum number of ports */
 
 struct doca_dev;
 struct dpdk_mempool_shadow;
@@ -59,6 +60,13 @@ struct application_dpdk_config {
 						     * Memory pool that will be used by the DPDK ports
 						     * for allocating rte_pktmbuf
 						     */
+
+	// NxN matrix of hairpin queues
+	// hairpin_queues[x][y] is the base queue number from port x to port y
+	uint16_t hairpin_queues[MAX_PORTS][MAX_PORTS];
+	// hairpin_q_count is the number of hairpin queues between each pair of ports
+	// range will be from hairpin_queues[x][y] to hairpin_queues[x][y] + hairpin_q_count - 1
+	uint8_t hairpin_q_count;
 };
 
 /*

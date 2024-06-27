@@ -54,7 +54,7 @@ void check_for_valid_entry(struct doca_flow_pipe_entry *entry,
 	case DOCA_FLOW_ENTRY_OP_DEL:
 		break;
 	default:
-		DOCA_LOG_INFO("Entry 0x%lx, op code %d", (uint64_t)entry, op);
+		DOCA_LOG_DBG("Entry 0x%lx, op code %d", (uint64_t)entry, op);
 		break;
 	}
 
@@ -241,16 +241,6 @@ doca_error_t init_doca_flow_ports(int nb_ports,
 			DOCA_LOG_ERR("Failed to start port: %s", doca_error_get_descr(result));
 			if (portid != 0)
 				stop_doca_flow_ports(portid, ports);
-			return result;
-		}
-		/* Pair ports should be done in the following order: port0 with port1, port2 with port3 etc */
-		if (!is_hairpin || !portid || !(portid % 2))
-			continue;
-		/* pair odd port with previous port */
-		result = doca_flow_port_pair(ports[portid], ports[portid ^ 1]);
-		if (result != DOCA_SUCCESS) {
-			DOCA_LOG_ERR("Failed to pair ports %u - %u", portid, portid ^ 1);
-			stop_doca_flow_ports(portid + 1, ports);
 			return result;
 		}
 	}

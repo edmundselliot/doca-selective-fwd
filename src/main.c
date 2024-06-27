@@ -21,7 +21,7 @@ DOCA_LOG_REGISTER(SELECTIVE_FWD::MAIN);
  * @nb_queues [in]: number of queues the sample will use
  * @return: DOCA_SUCCESS on success and DOCA_ERROR otherwise.
  */
-doca_error_t run_app(int nb_queues)
+doca_error_t run_app(struct application_dpdk_config *app_cfg)
 {
 	struct flow_resources resource = {};
 	uint32_t nr_shared_resources[SHARED_RESOURCE_NUM_VALUES] = {0};
@@ -32,7 +32,7 @@ doca_error_t run_app(int nb_queues)
 
 	resource.nr_counters = MAX_FLOWS_PER_PORT * NUM_PORTS;
 
-	result = init_doca_flow(nb_queues, "vnf,hws", &resource, nr_shared_resources);
+	result = init_doca_flow(app_cfg->port_config.nb_queues, "vnf,hws", &resource, nr_shared_resources);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to init DOCA Flow: %s", doca_error_get_descr(result));
 		return result;
@@ -52,7 +52,7 @@ doca_error_t run_app(int nb_queues)
 	// 	2. Add a hairpin pipe with no entries in it. The entries will be dynamically added later.
 	// 		- On miss, the hairpin pipe will forward packets to the RSS pipe.
 	// 		- On hit, the hairpin pipe entry will hairpin packets to the other port's tx.
-	result = configure_static_pipes(ports, hairpin_pipes);
+	result = configure_static_pipes(app_cfg, ports, hairpin_pipes);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to configure static pipes: %s", doca_error_get_descr(result));
 		stop_doca_flow_ports(NUM_PORTS, ports);
@@ -62,7 +62,7 @@ doca_error_t run_app(int nb_queues)
 
 	// DYNAMIC CONFIGURATION
 	//  Start a PMD which will dynamically add entries to pipes as required.
-	start_pmd(ports, hairpin_pipes, nb_queues);
+	start_pmd(app_cfg, ports, hairpin_pipes, app_cfg->port_config.nb_queues);
 
 	return result;
 }
@@ -83,7 +83,8 @@ int main(int argc, char **argv)
 	struct application_dpdk_config dpdk_config = {
 		.port_config.nb_ports = 2,
 		.port_config.nb_queues = 2,
-		.port_config.nb_hairpin_q = 2,
+		.port_config.nb_hairpin_q = 4, // total per-port
+		.port_config.self_hairpin = true,
 	};
 
 	/* Register a logger backend */
@@ -121,7 +122,7 @@ int main(int argc, char **argv)
 	}
 
 	/* configure static pipes, then run "pmd" */
-	result = run_app(dpdk_config.port_config.nb_queues);
+	result = run_app(&dpdk_config);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("run_app() encountered an error: %s", doca_error_get_descr(result));
 		goto dpdk_ports_queues_cleanup;
