@@ -9,7 +9,7 @@ Sample application showing a simple forwarding application, which allows users t
  │      │Virtual machine                                               │
  │      │                                                              │
  │      │    ┌─────────────────────────────────────────────────────────┤
- │      │    │DPDK PMD                                                 │
+ │      │    │DPDK APP                                                 │
  │      │    │                    ┌---allow/deny◄---┐                  │
  │      │    │                    ¦                 ¦                  │
  │      │    ├────────────────────¦───────┬─────────¦──────────────────┤
@@ -69,5 +69,6 @@ Users can selectively offload hairpin flows for traffic which is received.
 [06:39:28:982206][398293][DOCA][INF][pipes.c:331][run_app] Flow will not be offloaded
 ```
 If user selects:
-* y - packet is re-injected, and a flow which hairpins future packets for that 5-tuple is added
+* s - packet is re-injected to the same port which received it, and a flow which hairpins future packets for that 5-tuple is added
+* p - packet is re-injected to the peer port (the one which did not receive it), and a flow which hairpins future packets for that 5-tuple is added
 * n - packet is dropped
