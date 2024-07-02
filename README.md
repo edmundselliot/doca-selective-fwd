@@ -61,11 +61,11 @@ With VF PCIs `26:00.3` and `26.00.5`:
 Users can selectively offload hairpin flows for traffic which is received.
 ```
 [06:38:23:967506][398293][DOCA][INF][pipes.c:291][run_app] Setup done. Listening for packets
-[P0 Q2] Offload 60.0.0.1:1238 -> 60.0.0.3:80? (y/n): y
+[P0 Q2] Offload 60.0.0.1:1238 -> 60.0.0.3:80? (s/p/n): p
 [06:38:56:092519][398293][DOCA][INF][pipes.c:327][run_app] Flow offloaded
-[P0 Q44] Offload 60.0.0.1:4000 -> 60.0.0.2:4001? (y/n): n
+[P0 Q44] Offload 60.0.0.1:4000 -> 60.0.0.2:4001? (s/p/n): n
 [06:39:21:403840][398293][DOCA][INF][pipes.c:331][run_app] Flow will not be offloaded
-[P0 Q44] Offload 60.0.0.1:4000 -> 60.0.0.2:4001? (y/n): n
+[P0 Q44] Offload 60.0.0.1:4000 -> 60.0.0.2:4001? (s/p/n): n
 [06:39:28:982206][398293][DOCA][INF][pipes.c:331][run_app] Flow will not be offloaded
 ```
 If user selects:
