@@ -11,7 +11,9 @@ source_files = [
 ]
 
 deps = [
-	dependency('doca'),
+	dependency('doca-flow'),
+	dependency('doca-argp'),
+	dependency('doca-common'),
 	dependency('libdpdk'),
 ]
 
