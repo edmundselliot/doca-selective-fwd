@@ -32,12 +32,14 @@ run_app(struct application_dpdk_config* app_cfg)
     struct doca_dev* dev_arr[NUM_PORTS];
     doca_error_t result;
 
-    resource.nr_counters = MAX_FLOWS_PER_PORT * NUM_PORTS;
+    resource.nr_counters = pow(2, 23) + pow(2, 22);
 
+    DOCA_LOG_INFO("Initializing DOCA Flow");
     result = init_doca_flow(app_cfg->port_config.nb_queues,
                             "vnf,hws",
                             &resource,
                             nr_shared_resources);
+    DOCA_LOG_INFO("DOCA Flow initialized");
     if (result != DOCA_SUCCESS) {
         DOCA_LOG_ERR("Failed to init DOCA Flow: %s",
                      doca_error_get_descr(result));

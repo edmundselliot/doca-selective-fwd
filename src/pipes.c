@@ -162,7 +162,7 @@ create_hairpin_pipe(struct doca_flow_port* port,
 
     actions_arr[0] = &actions;
 
-    monitor.aging_sec = FLOW_TIMEOUT_SEC;
+	monitor.counter_type = DOCA_FLOW_RESOURCE_TYPE_NON_SHARED;
 
     result = doca_flow_pipe_cfg_create(&pipe_cfg, port);
     if (result != DOCA_SUCCESS) {
@@ -188,6 +188,13 @@ create_hairpin_pipe(struct doca_flow_port* port,
         pipe_cfg, actions_arr, NULL, NULL, NB_ACTIONS_ARR);
     if (result != DOCA_SUCCESS) {
         DOCA_LOG_ERR("Failed to set doca_flow_pipe_cfg actions: %s",
+                     doca_error_get_descr(result));
+        goto destroy_pipe_cfg;
+    }
+
+    result = doca_flow_pipe_cfg_set_nr_entries(pipe_cfg, pow(2, 23));
+    if (result != DOCA_SUCCESS) {
+        DOCA_LOG_ERR("Failed to set doca_flow_pipe_cfg nr_entries: %s",
                      doca_error_get_descr(result));
         goto destroy_pipe_cfg;
     }
@@ -239,6 +246,7 @@ add_hairpin_pipe_entry(struct doca_flow_port* ports[NUM_PORTS],
     struct doca_flow_pipe_entry* entry;
     struct entries_status status;
     doca_error_t result;
+    struct doca_flow_monitor monitor = {};
 
     /* example 5-tuple to forward */
     memset(&match, 0, sizeof(match));
@@ -260,8 +268,10 @@ add_hairpin_pipe_entry(struct doca_flow_port* ports[NUM_PORTS],
     fwd.num_of_queues = hairpin_q_len;
     fwd.rss_outer_flags = DOCA_FLOW_RSS_IPV4 | DOCA_FLOW_RSS_TCP;
 
+    monitor.counter_type = DOCA_FLOW_RESOURCE_TYPE_NON_SHARED;
+
     result = doca_flow_pipe_add_entry(
-        0, pipe, &match, &actions, NULL, &fwd, 0, &status, &entry);
+        0, pipe, &match, &actions, &monitor, &fwd, 0, &status, &entry);
     if (result != DOCA_SUCCESS) {
         DOCA_LOG_ERR("Failed to add entry: %s", doca_error_get_descr(result));
         return result;
