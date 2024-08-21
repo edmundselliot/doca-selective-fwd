@@ -151,12 +151,11 @@ create_hairpin_pipe(struct doca_flow_port* port,
     memset(&monitor, 0, sizeof(monitor));
 
     /* 5 tuple match */
-    match.parser_meta.outer_l4_type = DOCA_FLOW_L4_META_TCP;
-    match.parser_meta.outer_l3_type = DOCA_FLOW_L3_META_IPV4;
-    match.outer.l4_type_ext = DOCA_FLOW_L4_TYPE_EXT_TCP;
-    match.outer.l3_type = DOCA_FLOW_L3_TYPE_IP4;
-    match.outer.ip4.src_ip = 0xffffffff;
-    match.outer.ip4.dst_ip = 0xffffffff;
+    match.outer.l3_type = DOCA_FLOW_L3_TYPE_IP6;
+    match.outer.ip6.dst_ip[0] = 0;
+    match.outer.ip6.dst_ip[1] = 0;
+    match.outer.ip6.dst_ip[2] = 0xffff;
+    match.outer.ip6.dst_ip[3] = 0xffff;
     match.outer.tcp.l4_port.src_port = 0xffff;
     match.outer.tcp.l4_port.dst_port = 0xffff;
 
@@ -253,8 +252,10 @@ add_hairpin_pipe_entry(struct doca_flow_port* ports[NUM_PORTS],
     memset(&actions, 0, sizeof(actions));
     memset(&status, 0, sizeof(status));
 
-    match.outer.ip4.dst_ip = dst_ip_addr;
-    match.outer.ip4.src_ip = src_ip_addr;
+    match.outer.ip6.dst_ip[0] = 0;
+    match.outer.ip6.dst_ip[1] = 0;
+    match.outer.ip6.dst_ip[2] = (dst_ip_addr & 0xffff);
+    match.outer.ip6.dst_ip[3] = (dst_ip_addr & 0xffff);
     match.outer.tcp.l4_port.dst_port = dst_port;
     match.outer.tcp.l4_port.src_port = src_port;
 
