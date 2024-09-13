@@ -65,7 +65,7 @@ doca_error_t start_workers(
                 DOCA_LOG_ERR("Failed to create rings");
                 return DOCA_ERROR_NO_MEMORY;
             }
-            rte_eal_remote_launch(start_offload_thread, (void*)&offload_params, lcore_id);
+            rte_eal_remote_launch(start_offload_thread, (void*)offload_params, lcore_id);
 
             (*add_entry_rings)[offload_workers_launched] = offload_params->add_entry_ring;
             (*remove_entry_rings)[offload_workers_launched] = offload_params->remove_entry_ring;
@@ -84,7 +84,7 @@ doca_error_t start_workers(
             pmd_params->queue_id = pmd_workers_launched;
             pmd_params->add_entry_rings = add_entry_rings;
             pmd_params->remove_entry_rings = remove_entry_rings;
-            rte_eal_remote_launch(start_pmd, (void*)&pmd_params, lcore_id);
+            rte_eal_remote_launch(start_pmd, (void*)pmd_params, lcore_id);
 
             pmd_workers_launched++;
         }
@@ -137,14 +137,10 @@ doca_error_t run_app(struct application_dpdk_config* app_cfg)
 
     // STATIC CONFIGURATION
     // 	On each port
-    // 	1. Add an RSS pipe and a match-all entry on the RSS pipe to forward
-    // packets to RSS
-    // 	2. Add a hairpin pipe with no entries in it. The entries will be
-    // dynamically added later.
-    // 		- On miss, the hairpin pipe will forward packets to the RSS
-    // pipe.
-    // 		- On hit, the hairpin pipe entry will hairpin packets to the
-    // other port's tx.
+    // 	1. Add an RSS pipe and a match-all entry on the RSS pipe to forward packets to RSS
+    // 	2. Add a hairpin pipe with no entries in it. The entries will be dynamically added later.
+    // 		- On miss, the hairpin pipe will forward packets to the RSS pipe.
+    // 		- On hit, the hairpin pipe entry will hairpin packets to the other port's tx.
     result = configure_static_pipes(app_cfg, port_arr, hairpin_pipe_arr);
     if (result != DOCA_SUCCESS) {
         DOCA_LOG_ERR("Failed to configure static pipes: %s", doca_error_get_descr(result));
@@ -163,15 +159,20 @@ doca_error_t run_app(struct application_dpdk_config* app_cfg)
         │RXQ3├───►│PMD3│     │        ├───┤ └▲───┘   └───┘
         └────┘    └────┘     └───────►│RR1┼──┘
                                       └───┘
+        Note: any PMD can reach any AR/RR. For simplicity we only show the connections for PMD0 above.
+
         We start any number of PMD workers and offload workers.
         - The offload workers will each have an "add ring" and a "remove ring" which contain information
-          about the flows to add and remove. They will pull information off those rings, and add remove
-          using a unique pipe queue for each offload worker.
+            about the flows to add and remove. They will pull information off those rings, and add remove
+            using a unique pipe queue for each offload worker.
         - The PMD workers will read packets and queue offloads to the offload workers. Any PMD worker can
-          queue a flow to any offload worker. To decide which offload worker to queue to, all PMDs will
-          hash the flow key and use the hash to decide which offload worker to queue to.
+            queue to any offload worker. To decide which offload worker to queue to, all PMDs will
+            hash the flow key and use the hash to decide which offload worker to queue to.
     */
-    result = start_workers(app_cfg->reserved_cores, app_cfg->port_config.nb_queues, app_cfg, port_arr, hairpin_pipe_arr);
+    result = start_workers(
+        app_cfg->reserved_cores, // nb offload workers
+        app_cfg->port_config.nb_queues, // nb pmd workers
+        app_cfg, port_arr, hairpin_pipe_arr);
     if (result != DOCA_SUCCESS) {
         DOCA_LOG_ERR("Failed to start workers: %s", doca_error_get_descr(result));
         goto cleanup;

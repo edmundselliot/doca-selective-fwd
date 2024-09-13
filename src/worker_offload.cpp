@@ -17,10 +17,19 @@ DOCA_LOG_REGISTER(SELECTIVE_FWD_OFFLOAD);
 
 int start_offload_thread(void *offload_params)
 {
-    // struct offload_params_t *params = (struct offload_params_t *)offload_params;
+    struct offload_params_t *params = (struct offload_params_t *)offload_params;
+    struct rte_mbuf* packets[PACKET_BURST_SZ];
+    int nb_packets;
 
     while (1) {
-        DOCA_LOG_INFO("offload thread");
-        sleep(1);
+        nb_packets = rte_ring_dequeue_burst(params->add_entry_ring, (void**)packets, PACKET_BURST_SZ, NULL);
+        if (nb_packets == 0) {
+            continue;
+        }
+
+        for (int i = 0; i < nb_packets; i++) {
+            DOCA_LOG_INFO("Packet %d:\n", i);
+            // rte_pktmbuf_dump(stdout, packets[i], packets[i]->pkt_len);
+        }
     }
 }
