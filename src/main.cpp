@@ -13,7 +13,7 @@
 
 #include "selective_fwd.h"
 
-DOCA_LOG_REGISTER(SELECTIVE_FWD::MAIN);
+DOCA_LOG_REGISTER(SELECTIVE_FWD);
 
 /*
  * Initialize doca, doca ports, create static configuration, and then start a
@@ -73,8 +73,46 @@ run_app(struct application_dpdk_config* app_cfg)
     }
 
     // DYNAMIC CONFIGURATION
-    //  Start a PMD which will dynamically add entries to pipes as required.
-    start_pmd(app_cfg, ports, hairpin_pipes, app_cfg->port_config.nb_queues);
+    struct rte_ring* add_entry_ring = rte_ring_create("add_entry_ring",
+                                                    4096,
+                                                    rte_socket_id(),
+                                                    RING_F_SC_DEQ);
+    struct rte_ring* remove_entry_ring = rte_ring_create("remove_entry_ring",
+                                                       4096,
+                                                       rte_socket_id(),
+                                                       RING_F_SC_DEQ);
+    if (add_entry_ring == NULL || remove_entry_ring == NULL) {
+        DOCA_LOG_ERR("Failed to create rings");
+        return DOCA_ERROR_NO_MEMORY;
+    }
+
+    struct offload_params_t offload_params;
+    offload_params.app_cfg = app_cfg;
+    // offload_params.ports = ports;
+    // offload_params.hairpin_pipes = hairpin_pipes;
+    offload_params.add_entry_ring = add_entry_ring;
+    offload_params.remove_entry_ring = remove_entry_ring;
+
+    uint32_t lcore_id;
+    uint32_t offload_threads_launched = 0;
+    RTE_LCORE_FOREACH_WORKER(lcore_id) {
+        if (offload_threads_launched < 1) {
+            //  Start an offload thread which will offload the entries to hardware
+            DOCA_LOG_INFO("Starting offload thread on lcore %u", lcore_id);
+            rte_eal_remote_launch(start_offload_thread, (void*)&offload_params, lcore_id);
+            offload_threads_launched++;
+        } else {
+            //  Start a PMD which will read packets and queue offloads to the offload thread
+            DOCA_LOG_INFO("Starting PMD on lcore %u", lcore_id);
+        }
+    }
+
+    // start_pmd(app_cfg, ports, hairpin_pipes, app_cfg->port_config.nb_queues, offload_ring);
+
+    while (1) {
+        DOCA_LOG_INFO("stats");
+        sleep(1);
+    }
 
     return result;
 }
@@ -92,12 +130,11 @@ main(int argc, char** argv)
     doca_error_t result;
     struct doca_log_backend* sdk_log;
     int exit_status = EXIT_FAILURE;
-    struct application_dpdk_config dpdk_config = {
-        .port_config.nb_ports = 2,
-        .port_config.nb_queues = 2,
-        .port_config.nb_hairpin_q = 4, // total per-port
-        .port_config.self_hairpin = true,
-    };
+    struct application_dpdk_config dpdk_config;
+    dpdk_config.port_config.nb_ports = 2;
+    dpdk_config.port_config.nb_queues = 2;
+    dpdk_config.port_config.nb_hairpin_q = 4; // total per-port
+    dpdk_config.port_config.self_hairpin = true;
 
     /* Register a logger backend */
     result = doca_log_backend_create_standard();

@@ -13,7 +13,7 @@
 
 #include "selective_fwd.h"
 
-DOCA_LOG_REGISTER(SELECTIVE_FWD::PIPES);
+DOCA_LOG_REGISTER(SELECTIVE_FWD_PIPES);
 
 /*
  * Create DOCA Flow pipe with a match-all entry, that forwards the matched

@@ -15,6 +15,8 @@
 #include <rte_ethdev.h>
 #include <rte_ether.h>
 #include <rte_malloc.h>
+#include <rte_ring.h>
+#include <rte_lcore.h>
 
 #include <doca_argp.h>
 #include <doca_buf_inventory.h>
@@ -41,11 +43,32 @@
 // Interval between calls to remove stale flows
 #define AGING_HANDLE_INTERVAL_SEC 5
 
-void
-start_pmd(struct application_dpdk_config* app_cfg,
-          struct doca_flow_port* ports[NUM_PORTS],
-          struct doca_flow_pipe* hairpin_pipes[NUM_PORTS],
-          uint32_t queues_per_port);
+struct hairpin_entry_info {
+    // add, remove operation
+    enum doca_flow_entry_op op;
+    // packet which should be offloaded
+    struct rte_mbuf* pkt;
+};
+
+struct pmd_params_t {
+    uint32_t nb_queues;
+    struct rte_ring* add_entry_rings;
+    struct rte_ring* remove_entry_ring;
+};
+
+struct offload_params_t {
+    struct application_dpdk_config* app_cfg;
+    struct doca_flow_port* ports[NUM_PORTS];
+    struct doca_flow_pipe* hairpin_pipes[NUM_PORTS];
+
+    // the rings that this thread will read from
+    // prioritiy is given to entry removal
+    struct rte_ring* add_entry_ring;
+    struct rte_ring* remove_entry_ring;
+};
+
+int start_pmd(void *pmd_params);
+int start_offload_thread(void *offload_params);
 
 doca_error_t
 add_hairpin_pipe_entry(struct doca_flow_port* ports[NUM_PORTS],

@@ -11,11 +11,8 @@
  *
  */
 #include <string.h>
-
 #include <rte_byteorder.h>
-
 #include <doca_log.h>
-
 #include "flow_common.h"
 
 DOCA_LOG_REGISTER(flow_common);
@@ -160,7 +157,7 @@ init_doca_flow_cb(int nb_queues,
 
     for (int i = 0; i < SHARED_RESOURCE_NUM_VALUES; i++) {
         result = doca_flow_cfg_set_nr_shared_resource(
-            flow_cfg, nr_shared_resources[i], i);
+            flow_cfg, nr_shared_resources[i], (enum doca_flow_shared_resource_type)i);
         if (result != DOCA_SUCCESS) {
             DOCA_LOG_ERR("Failed to set doca_flow_cfg nr_shared_resources: %s",
                          doca_error_get_descr(result));
