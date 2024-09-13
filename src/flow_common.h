@@ -50,15 +50,11 @@
 /* user context struct that will be used in entries process callback */
 struct entries_status
 {
-    bool
-        failure; /* will be set to true if some entry status will not be success
-                  */
-    int nb_processed; /* will hold the number of entries that was already
-                         processed */
+    bool failure; /* will be set to true if some entry status will not be success */
+    uint32_t nb_processed; /* will hold the number of entries that was already processed */
 };
 
-/* User struct that hold number of counters and meters to configure for
- * doca_flow */
+/* User struct that hold number of counters and meters to configure for doca_flow */
 struct flow_resources
 {
     uint32_t nr_counters; /* number of counters to configure */

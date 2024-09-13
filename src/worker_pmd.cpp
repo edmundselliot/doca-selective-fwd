@@ -25,8 +25,16 @@ DOCA_LOG_REGISTER(SELECTIVE_FWD_PMD);
  * @hairpin_pipes [in]: array of hairpin pipes
  * @nb_queues [in]: number of queues
  */
-// void start_pmd(void* _pmd_params)
-// {
+int start_pmd(void* pmd_params)
+{
+    // struct pmd_params_t params = *(struct pmd_params_t*)pmd_params;
+
+    while (1) {
+        DOCA_LOG_INFO("PMD thread");
+        sleep(1);
+    }
+}
+
 //     struct pmd_params_t pmd_params = *(struct pmd_params_t*)_pmd_params;
 //     struct rte_mbuf* packets[PACKET_BURST_SZ];
 //     struct rte_ether_hdr* eth_hdr;

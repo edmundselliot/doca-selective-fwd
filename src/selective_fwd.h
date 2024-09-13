@@ -31,12 +31,16 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <vector>
+#include <string>
+
 #include "dpdk_utils.h"
 #include "flow_common.h"
 
 #define NUM_PORTS 2
 #define MAX_FLOWS_PER_PORT 4096
 #define PACKET_BURST_SZ 256
+#define NUM_OFFLOAD_WORKERS 2
 
 // Duration before a flow is considered stale
 #define FLOW_TIMEOUT_SEC 30
@@ -50,21 +54,19 @@ struct hairpin_entry_info {
     struct rte_mbuf* pkt;
 };
 
-struct pmd_params_t {
-    uint32_t nb_queues;
-    struct rte_ring* add_entry_rings;
+struct offload_params_t {
+    struct application_dpdk_config* app_cfg;
+    struct doca_flow_port** ports;
+    struct doca_flow_pipe** hairpin_pipes;
+    struct rte_ring* add_entry_ring;
     struct rte_ring* remove_entry_ring;
 };
 
-struct offload_params_t {
+struct pmd_params_t {
     struct application_dpdk_config* app_cfg;
-    struct doca_flow_port* ports[NUM_PORTS];
-    struct doca_flow_pipe* hairpin_pipes[NUM_PORTS];
-
-    // the rings that this thread will read from
-    // prioritiy is given to entry removal
-    struct rte_ring* add_entry_ring;
-    struct rte_ring* remove_entry_ring;
+    uint16_t queue_id;
+    std::vector<struct rte_ring*>* add_entry_rings;
+    std::vector<struct rte_ring*>* remove_entry_rings;
 };
 
 int start_pmd(void *pmd_params);
