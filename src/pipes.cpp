@@ -162,7 +162,7 @@ create_hairpin_pipe(struct doca_flow_port* port,
 
     actions_arr[0] = &actions;
 
-    monitor.aging_sec = FLOW_TIMEOUT_SEC;
+    // monitor.aging_sec = FLOW_TIMEOUT_SEC;
 
     result = doca_flow_pipe_cfg_create(&pipe_cfg, port);
     if (result != DOCA_SUCCESS) {
@@ -171,31 +171,33 @@ create_hairpin_pipe(struct doca_flow_port* port,
         return result;
     }
 
-    result =
-        set_flow_pipe_cfg(pipe_cfg, "HAIRPIN_PIPE", DOCA_FLOW_PIPE_BASIC, true);
+    result = set_flow_pipe_cfg(pipe_cfg, "HAIRPIN_PIPE", DOCA_FLOW_PIPE_BASIC, true);
     if (result != DOCA_SUCCESS) {
-        DOCA_LOG_ERR("Failed to set doca_flow_pipe_cfg: %s",
-                     doca_error_get_descr(result));
+        DOCA_LOG_ERR("Failed to set doca_flow_pipe_cfg: %s", doca_error_get_descr(result));
         goto destroy_pipe_cfg;
     }
+
     result = doca_flow_pipe_cfg_set_match(pipe_cfg, &match, NULL);
     if (result != DOCA_SUCCESS) {
-        DOCA_LOG_ERR("Failed to set doca_flow_pipe_cfg match: %s",
-                     doca_error_get_descr(result));
+        DOCA_LOG_ERR("Failed to set doca_flow_pipe_cfg match: %s", doca_error_get_descr(result));
         goto destroy_pipe_cfg;
     }
-    result = doca_flow_pipe_cfg_set_actions(
-        pipe_cfg, actions_arr, NULL, NULL, NB_ACTIONS_ARR);
+
+    result = doca_flow_pipe_cfg_set_actions(pipe_cfg, actions_arr, NULL, NULL, NB_ACTIONS_ARR);
     if (result != DOCA_SUCCESS) {
-        DOCA_LOG_ERR("Failed to set doca_flow_pipe_cfg actions: %s",
-                     doca_error_get_descr(result));
+        DOCA_LOG_ERR("Failed to set doca_flow_pipe_cfg actions: %s", doca_error_get_descr(result));
         goto destroy_pipe_cfg;
     }
 
     result = doca_flow_pipe_cfg_set_monitor(pipe_cfg, &monitor);
     if (result != DOCA_SUCCESS) {
-        DOCA_LOG_ERR("Failed to set doca_flow_pipe_cfg monitor: %s",
-                     doca_error_get_descr(result));
+        DOCA_LOG_ERR("Failed to set doca_flow_pipe_cfg monitor: %s", doca_error_get_descr(result));
+        goto destroy_pipe_cfg;
+    }
+
+    result = doca_flow_pipe_cfg_set_nr_entries(pipe_cfg, 8000000);
+    if (result != DOCA_SUCCESS) {
+        DOCA_LOG_ERR("Failed to set doca_flow_pipe_cfg nr_entries: %s", doca_error_get_descr(result));
         goto destroy_pipe_cfg;
     }
 
@@ -207,6 +209,9 @@ create_hairpin_pipe(struct doca_flow_port* port,
     fwd_miss.next_pipe = pipe_fwd_miss;
 
     result = doca_flow_pipe_create(pipe_cfg, &fwd, &fwd_miss, pipe);
+    if (result != DOCA_SUCCESS)
+        DOCA_LOG_ERR("Failed to create pipe: %s", doca_error_get_descr(result));
+
 destroy_pipe_cfg:
     doca_flow_pipe_cfg_destroy(pipe_cfg);
     return result;
@@ -232,18 +237,18 @@ add_hairpin_pipe_entry(struct doca_flow_port* ports[NUM_PORTS],
                        doca_be32_t dst_ip_addr,
                        doca_be32_t src_ip_addr,
                        doca_be16_t dst_port,
-                       doca_be16_t src_port)
+                       doca_be16_t src_port,
+                       uint8_t pipe_queue,
+                       struct entries_status *status)
 {
     struct doca_flow_match match;
     struct doca_flow_actions actions;
     struct doca_flow_pipe_entry* entry;
-    struct entries_status status;
     doca_error_t result;
 
     /* example 5-tuple to forward */
     memset(&match, 0, sizeof(match));
     memset(&actions, 0, sizeof(actions));
-    memset(&status, 0, sizeof(status));
 
     match.outer.ip4.dst_ip = dst_ip_addr;
     match.outer.ip4.src_ip = src_ip_addr;
@@ -261,29 +266,16 @@ add_hairpin_pipe_entry(struct doca_flow_port* ports[NUM_PORTS],
     fwd.rss_outer_flags = DOCA_FLOW_RSS_IPV4 | DOCA_FLOW_RSS_TCP;
 
     result = doca_flow_pipe_add_entry(
-        0, pipe, &match, &actions, NULL, &fwd, 0, &status, &entry);
+        pipe_queue, pipe, &match, &actions, NULL, &fwd, DOCA_FLOW_WAIT_FOR_BATCH, status, &entry);
     if (result != DOCA_SUCCESS) {
         DOCA_LOG_ERR("Failed to add entry: %s", doca_error_get_descr(result));
         return result;
     }
 
-    result =
-        doca_flow_entries_process(ports[port_id_in], 0, DEFAULT_TIMEOUT_US, 1);
-    if (result != DOCA_SUCCESS) {
-        DOCA_LOG_ERR("Failed to process entries: %s",
-                     doca_error_get_descr(result));
-        return result;
-    }
-
-    if (status.nb_processed != 1 || status.failure) {
-        DOCA_LOG_ERR("Failed to process entries");
-        return DOCA_ERROR_BAD_STATE;
-    }
-
     DOCA_LOG_DBG("Added a hairpin pipe entry to port %d on queues %d-%d",
-                 port_id_in,
-                 base_hairpin_q,
-                 base_hairpin_q + hairpin_q_len - 1);
+                port_id_in,
+                base_hairpin_q,
+                base_hairpin_q + hairpin_q_len - 1);
     return DOCA_SUCCESS;
 }
 

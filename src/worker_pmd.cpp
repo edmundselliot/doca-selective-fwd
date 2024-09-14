@@ -83,7 +83,6 @@ int start_pmd(void* pmd_params)
             }
             handle_packets(packets, nb_packets, params->app_cfg, params->add_entry_rings, params->remove_entry_rings);
         }
-
     }
 }
 

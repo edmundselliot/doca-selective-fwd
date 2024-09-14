@@ -41,11 +41,9 @@ check_for_valid_entry(struct doca_flow_pipe_entry* entry,
     if (entry_status == NULL)
         return;
     if (status != DOCA_FLOW_ENTRY_STATUS_SUCCESS)
-        entry_status->failure =
-            true; /* set failure to true if processing failed */
+        entry_status->failure = true; /* set failure to true if processing failed */
 
     switch (op) {
-
         case DOCA_FLOW_ENTRY_OP_AGED:
             doca_flow_pipe_remove_entry(pipe_queue, DOCA_FLOW_NO_WAIT, entry);
 
@@ -105,14 +103,14 @@ init_doca_flow_cb(int nb_queues,
         goto destroy_cfg;
     }
 
-    result = doca_flow_cfg_set_pipe_queues(flow_cfg, nb_queues);
+    result = doca_flow_cfg_set_pipe_queues(flow_cfg, 64);
     if (result != DOCA_SUCCESS) {
         DOCA_LOG_ERR("Failed to set doca_flow_cfg pipe_queues: %s",
                      doca_error_get_descr(result));
         goto destroy_cfg;
     }
 
-    result = doca_flow_cfg_set_queue_depth(flow_cfg, 1024);
+    result = doca_flow_cfg_set_queue_depth(flow_cfg, 4096);
     if (result != DOCA_SUCCESS) {
         DOCA_LOG_ERR("Failed to set queue depth: %s",
                      doca_error_get_descr(result));
@@ -167,13 +165,12 @@ init_doca_flow_cb(int nb_queues,
 
     result = doca_flow_init(flow_cfg);
     if (result != DOCA_SUCCESS)
-        DOCA_LOG_ERR("Failed to initialize DOCA Flow: %s",
-                     doca_error_get_descr(result));
+        DOCA_LOG_ERR("Failed to initialize DOCA Flow: %s", doca_error_get_descr(result));
+
 destroy_cfg:
     tmp_result = doca_flow_cfg_destroy(flow_cfg);
     if (tmp_result != DOCA_SUCCESS) {
-        DOCA_LOG_ERR("Failed to destroy doca_flow_cfg: %s",
-                     doca_error_get_descr(tmp_result));
+        DOCA_LOG_ERR("Failed to destroy doca_flow_cfg: %s", doca_error_get_descr(tmp_result));
         DOCA_ERROR_PROPAGATE(result, tmp_result);
     }
 

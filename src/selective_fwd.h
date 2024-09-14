@@ -33,6 +33,7 @@
 
 #include <vector>
 #include <string>
+#include <chrono>
 
 #include "dpdk_utils.h"
 #include "flow_common.h"
@@ -60,6 +61,7 @@ struct offload_params_t {
     struct doca_flow_pipe** hairpin_pipes;
     struct rte_ring* add_entry_ring;
     struct rte_ring* remove_entry_ring;
+    uint8_t doca_pipe_queue;
 };
 
 struct pmd_params_t {
@@ -81,7 +83,9 @@ add_hairpin_pipe_entry(struct doca_flow_port* ports[NUM_PORTS],
                        doca_be32_t dst_ip_addr,
                        doca_be32_t src_ip_addr,
                        doca_be16_t dst_port,
-                       doca_be16_t src_port);
+                       doca_be16_t src_port,
+                       uint8_t pipe_queue,
+                       struct entries_status* status);
 
 doca_error_t
 configure_static_pipes(struct application_dpdk_config* app_cfg,

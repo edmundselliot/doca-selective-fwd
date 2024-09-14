@@ -59,6 +59,7 @@ doca_error_t start_workers(
             offload_params->app_cfg = app_cfg;
             offload_params->ports = ports;
             offload_params->hairpin_pipes = hairpin_pipes;
+            offload_params->doca_pipe_queue = offload_workers_launched;
             offload_params->add_entry_ring = rte_ring_create(add_ring_name.c_str(), 4096, rte_socket_id(), RING_F_SC_DEQ);
             offload_params->remove_entry_ring = rte_ring_create(remove_ring_name.c_str(), 4096, rte_socket_id(), RING_F_SC_DEQ);
             if (offload_params->add_entry_ring == NULL || offload_params->remove_entry_ring == NULL) {
@@ -115,7 +116,7 @@ doca_error_t run_app(struct application_dpdk_config* app_cfg)
     struct doca_dev* dev_arr[NUM_PORTS];
     doca_error_t result;
 
-    resource.nr_counters = MAX_FLOWS_PER_PORT * NUM_PORTS;
+    resource.nr_counters = 8000000;
 
     result = init_doca_flow(app_cfg->port_config.nb_queues,
                             "vnf,hws",
