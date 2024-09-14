@@ -211,7 +211,7 @@ main(int argc, char** argv)
     dpdk_config.reserve_main_thread = true; // used for stats
     dpdk_config.port_config.self_hairpin = true;
     dpdk_config.port_config.nb_queues = 2; // N queues and N pmd workers
-    dpdk_config.reserved_cores = 2; // N set of rings and N offload workers
+    dpdk_config.reserved_cores = 8; // N set of rings and N offload workers
 
     /* Register a logger backend */
     result = doca_log_backend_create_standard();

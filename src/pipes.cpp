@@ -239,11 +239,11 @@ add_hairpin_pipe_entry(struct doca_flow_port* ports[NUM_PORTS],
                        doca_be16_t dst_port,
                        doca_be16_t src_port,
                        uint8_t pipe_queue,
-                       struct entries_status *status)
+                       struct entries_status *status,
+                       struct doca_flow_pipe_entry** entry)
 {
     struct doca_flow_match match;
     struct doca_flow_actions actions;
-    struct doca_flow_pipe_entry* entry;
     doca_error_t result;
 
     /* example 5-tuple to forward */
@@ -266,7 +266,7 @@ add_hairpin_pipe_entry(struct doca_flow_port* ports[NUM_PORTS],
     fwd.rss_outer_flags = DOCA_FLOW_RSS_IPV4 | DOCA_FLOW_RSS_TCP;
 
     result = doca_flow_pipe_add_entry(
-        pipe_queue, pipe, &match, &actions, NULL, &fwd, DOCA_FLOW_WAIT_FOR_BATCH, status, &entry);
+        pipe_queue, pipe, &match, &actions, NULL, &fwd, DOCA_FLOW_WAIT_FOR_BATCH, status, entry);
     if (result != DOCA_SUCCESS) {
         DOCA_LOG_ERR("Failed to add entry: %s", doca_error_get_descr(result));
         return result;

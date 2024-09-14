@@ -41,7 +41,6 @@
 #define NUM_PORTS 2
 #define MAX_FLOWS_PER_PORT 4096
 #define PACKET_BURST_SZ 256
-#define NUM_OFFLOAD_WORKERS 2
 
 // Duration before a flow is considered stale
 #define FLOW_TIMEOUT_SEC 30
@@ -85,7 +84,8 @@ add_hairpin_pipe_entry(struct doca_flow_port* ports[NUM_PORTS],
                        doca_be16_t dst_port,
                        doca_be16_t src_port,
                        uint8_t pipe_queue,
-                       struct entries_status* status);
+                       struct entries_status* status,
+                       struct doca_flow_pipe_entry **entry);
 
 doca_error_t
 configure_static_pipes(struct application_dpdk_config* app_cfg,
