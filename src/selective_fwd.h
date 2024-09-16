@@ -17,6 +17,8 @@
 #include <rte_malloc.h>
 #include <rte_ring.h>
 #include <rte_lcore.h>
+#include <rte_hash.h>
+#include <rte_jhash.h>
 
 #include <doca_argp.h>
 #include <doca_buf_inventory.h>
@@ -43,7 +45,7 @@
 #define PACKET_BURST_SZ 256
 
 // Duration before a flow is considered stale
-#define FLOW_TIMEOUT_SEC 30
+#define FLOW_TIMEOUT_SEC 5
 // Interval between calls to remove stale flows
 #define AGING_HANDLE_INTERVAL_SEC 5
 
@@ -61,6 +63,8 @@ struct offload_params_t {
     struct rte_ring* add_entry_ring;
     struct rte_ring* remove_entry_ring;
     uint8_t doca_pipe_queue;
+
+    int mbuf_src_port_offset;
 };
 
 struct pmd_params_t {
@@ -68,6 +72,8 @@ struct pmd_params_t {
     uint16_t queue_id;
     std::vector<struct rte_ring*>* add_entry_rings;
     std::vector<struct rte_ring*>* remove_entry_rings;
+
+    int mbuf_src_port_offset;
 };
 
 int start_pmd(void *pmd_params);

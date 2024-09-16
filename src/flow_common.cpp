@@ -110,7 +110,7 @@ init_doca_flow_cb(int nb_queues,
         goto destroy_cfg;
     }
 
-    result = doca_flow_cfg_set_queue_depth(flow_cfg, 4096);
+    result = doca_flow_cfg_set_queue_depth(flow_cfg, 1024);
     if (result != DOCA_SUCCESS) {
         DOCA_LOG_ERR("Failed to set queue depth: %s",
                      doca_error_get_descr(result));

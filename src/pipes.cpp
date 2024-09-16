@@ -162,7 +162,7 @@ create_hairpin_pipe(struct doca_flow_port* port,
 
     actions_arr[0] = &actions;
 
-    // monitor.aging_sec = FLOW_TIMEOUT_SEC;
+    monitor.aging_sec = FLOW_TIMEOUT_SEC;
 
     result = doca_flow_pipe_cfg_create(&pipe_cfg, port);
     if (result != DOCA_SUCCESS) {

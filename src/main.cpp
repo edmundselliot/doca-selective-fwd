@@ -43,6 +43,15 @@ doca_error_t start_workers(
     std::vector<struct rte_ring*>* add_entry_rings = new std::vector<struct rte_ring*>(nb_offload_workers);
     std::vector<struct rte_ring*>* remove_entry_rings = new std::vector<struct rte_ring*>(nb_offload_workers);
 
+    // For the offload workers to get metadata about a packet (which port it came from, and should go out from),
+    // we will use mbuf dynamic fields
+    struct rte_mbuf_dynfield dynfield = {
+        .name = "src_port",
+        .size = sizeof(uint8_t),
+        .align = __alignof__(uint8_t),
+    };
+    int src_port_offset = rte_mbuf_dynfield_register(&dynfield);
+
     RTE_LCORE_FOREACH_WORKER(lcore_id) {
         if (offload_workers_launched < nb_offload_workers) {
             DOCA_LOG_INFO("Starting offload thread on lcore %u", lcore_id);
@@ -60,6 +69,7 @@ doca_error_t start_workers(
             offload_params->ports = ports;
             offload_params->hairpin_pipes = hairpin_pipes;
             offload_params->doca_pipe_queue = offload_workers_launched;
+            offload_params->mbuf_src_port_offset = src_port_offset;
             offload_params->add_entry_ring = rte_ring_create(add_ring_name.c_str(), 4096, rte_socket_id(), RING_F_SC_DEQ);
             offload_params->remove_entry_ring = rte_ring_create(remove_ring_name.c_str(), 4096, rte_socket_id(), RING_F_SC_DEQ);
             if (offload_params->add_entry_ring == NULL || offload_params->remove_entry_ring == NULL) {
@@ -70,6 +80,7 @@ doca_error_t start_workers(
 
             (*add_entry_rings)[offload_workers_launched] = offload_params->add_entry_ring;
             (*remove_entry_rings)[offload_workers_launched] = offload_params->remove_entry_ring;
+
             offload_workers_launched++;
         }
         else if (pmd_workers_launched < nb_pmd_workers) {
@@ -85,12 +96,13 @@ doca_error_t start_workers(
             pmd_params->queue_id = pmd_workers_launched;
             pmd_params->add_entry_rings = add_entry_rings;
             pmd_params->remove_entry_rings = remove_entry_rings;
+            pmd_params->mbuf_src_port_offset = src_port_offset;
             rte_eal_remote_launch(start_pmd, (void*)pmd_params, lcore_id);
 
             pmd_workers_launched++;
         }
         else {
-            DOCA_LOG_INFO("Nothing launches on lcore %u", lcore_id);
+            DOCA_LOG_INFO("Nothing to launch on lcore %u", lcore_id);
         }
     }
 
@@ -169,6 +181,9 @@ doca_error_t run_app(struct application_dpdk_config* app_cfg)
         - The PMD workers will read packets and queue offloads to the offload workers. Any PMD worker can
             queue to any offload worker. To decide which offload worker to queue to, all PMDs will
             hash the flow key and use the hash to decide which offload worker to queue to.
+
+        For the offload workers to get metadata about a packet (which port it came from, and should go out from),
+        we will use mbuf dynamic fields
     */
     result = start_workers(
         app_cfg->reserved_cores, // nb offload workers
@@ -180,7 +195,7 @@ doca_error_t run_app(struct application_dpdk_config* app_cfg)
     }
 
     while (1) {
-        DOCA_LOG_INFO("stats");
+        // DOCA_LOG_INFO("stats");
         sleep(1);
     }
 
