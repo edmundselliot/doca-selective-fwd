@@ -82,6 +82,8 @@ extern "C"
         // ports range will be from hairpin_queues[x][y] to hairpin_queues[x][y]
         // + hairpin_q_count - 1
         uint8_t hairpin_q_count;
+        // worker cores which will not be used for a PMD and will not require a queue
+        uint8_t reserved_cores;
     };
 
     /*

@@ -11,11 +11,8 @@
  *
  */
 #include <string.h>
-
 #include <rte_byteorder.h>
-
 #include <doca_log.h>
-
 #include "flow_common.h"
 
 DOCA_LOG_REGISTER(flow_common);
@@ -44,11 +41,9 @@ check_for_valid_entry(struct doca_flow_pipe_entry* entry,
     if (entry_status == NULL)
         return;
     if (status != DOCA_FLOW_ENTRY_STATUS_SUCCESS)
-        entry_status->failure =
-            true; /* set failure to true if processing failed */
+        entry_status->failure = true; /* set failure to true if processing failed */
 
     switch (op) {
-
         case DOCA_FLOW_ENTRY_OP_AGED:
             doca_flow_pipe_remove_entry(pipe_queue, DOCA_FLOW_NO_WAIT, entry);
 
@@ -108,7 +103,7 @@ init_doca_flow_cb(int nb_queues,
         goto destroy_cfg;
     }
 
-    result = doca_flow_cfg_set_pipe_queues(flow_cfg, nb_queues);
+    result = doca_flow_cfg_set_pipe_queues(flow_cfg, 64);
     if (result != DOCA_SUCCESS) {
         DOCA_LOG_ERR("Failed to set doca_flow_cfg pipe_queues: %s",
                      doca_error_get_descr(result));
@@ -160,7 +155,7 @@ init_doca_flow_cb(int nb_queues,
 
     for (int i = 0; i < SHARED_RESOURCE_NUM_VALUES; i++) {
         result = doca_flow_cfg_set_nr_shared_resource(
-            flow_cfg, nr_shared_resources[i], i);
+            flow_cfg, nr_shared_resources[i], (enum doca_flow_shared_resource_type)i);
         if (result != DOCA_SUCCESS) {
             DOCA_LOG_ERR("Failed to set doca_flow_cfg nr_shared_resources: %s",
                          doca_error_get_descr(result));
@@ -170,13 +165,12 @@ init_doca_flow_cb(int nb_queues,
 
     result = doca_flow_init(flow_cfg);
     if (result != DOCA_SUCCESS)
-        DOCA_LOG_ERR("Failed to initialize DOCA Flow: %s",
-                     doca_error_get_descr(result));
+        DOCA_LOG_ERR("Failed to initialize DOCA Flow: %s", doca_error_get_descr(result));
+
 destroy_cfg:
     tmp_result = doca_flow_cfg_destroy(flow_cfg);
     if (tmp_result != DOCA_SUCCESS) {
-        DOCA_LOG_ERR("Failed to destroy doca_flow_cfg: %s",
-                     doca_error_get_descr(tmp_result));
+        DOCA_LOG_ERR("Failed to destroy doca_flow_cfg: %s", doca_error_get_descr(tmp_result));
         DOCA_ERROR_PROPAGATE(result, tmp_result);
     }
 

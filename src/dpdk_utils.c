@@ -602,16 +602,18 @@ dpdk_queues_and_ports_init(struct application_dpdk_config* app_dpdk_config)
 
     /* Check for available logical cores */
     ret = rte_lcore_count();
-    if (app_dpdk_config->port_config.nb_queues > 0 &&
-        ret < app_dpdk_config->port_config.nb_queues) {
+    uint32_t required_cores = app_dpdk_config->port_config.nb_queues +
+                              app_dpdk_config->reserved_cores +
+                              (app_dpdk_config->reserve_main_thread ? 1 : 0);
+    if (required_cores > 0 && ret < required_cores) {
         DOCA_LOG_ERR("At least %u cores are needed for the application to run, "
                      "available_cores=%d",
-                     app_dpdk_config->port_config.nb_queues,
+                     required_cores,
                      ret);
         return DOCA_ERROR_DRIVER;
     }
-    app_dpdk_config->port_config.nb_queues = ret;
 
+    app_dpdk_config->port_config.nb_queues = ret - app_dpdk_config->reserved_cores;
     if (app_dpdk_config->reserve_main_thread)
         app_dpdk_config->port_config.nb_queues -= 1;
 
