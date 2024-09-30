@@ -54,7 +54,7 @@ ninja -C build
 ## Sample init
 With VF PCIs `26:00.3` and `26.00.5`:
 ```
-./build/doca-selective-fwd -a26:00.3,dv_flow_en=2,dv_xmeta_en=4 -a26:00.5,dv_flow_en=2,dv_xmeta_en=4
+./build/doca-selective-fwd -a26:00.3,dv_flow_en=2,dv_xmeta_en=4 -a26:00.5,dv_flow_en=2,dv_xmeta_en=4 -c 0x3
 ```
 
 ## Running

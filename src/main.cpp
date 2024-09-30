@@ -109,7 +109,7 @@ doca_error_t run_app(struct application_dpdk_config* app_cfg)
 
     while (1) {
         print_stats();
-        sleep(1);
+        sleep(5);
     }
 
 cleanup:
