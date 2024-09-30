@@ -35,7 +35,7 @@ create_rss_pipe(struct doca_flow_port* port,
     doca_error_t result;
     uint16_t rss_queues[256];
     struct entries_status status;
-    uint32_t nb_entries = 500000;
+    uint32_t nb_entries = 1;
 
     memset(&match, 0, sizeof(match));
     memset(&fwd, 0, sizeof(fwd));
@@ -85,8 +85,7 @@ create_rss_pipe(struct doca_flow_port* port,
     }
     doca_flow_pipe_cfg_destroy(cfg);
 
-    /* Match on any packet */
-    for (uint64_t i = 0; i < nb_entries; i++) {
+    for (uint32_t i = 0; i < nb_entries; i++) {
         result = doca_flow_pipe_add_entry(0,
                                           *pipe,
                                           &match,
@@ -265,11 +264,16 @@ add_hairpin_pipe_entry(struct doca_flow_port* ports[NUM_PORTS],
     fwd.num_of_queues = hairpin_q_len;
     fwd.rss_outer_flags = DOCA_FLOW_RSS_IPV4 | DOCA_FLOW_RSS_TCP;
 
-    result = doca_flow_pipe_add_entry(
-        pipe_queue, pipe, &match, &actions, NULL, &fwd, DOCA_FLOW_WAIT_FOR_BATCH, status, entry);
+    result = doca_flow_pipe_add_entry(pipe_queue, pipe, &match, &actions, NULL, &fwd, DOCA_FLOW_WAIT_FOR_BATCH, status, entry);
     if (result != DOCA_SUCCESS) {
         DOCA_LOG_ERR("Failed to add entry: %s", doca_error_get_descr(result));
         return result;
+    }
+
+    result = doca_flow_entries_process(ports[port_id_in], 0, DEFAULT_TIMEOUT_US, 1);
+    if (result != DOCA_SUCCESS || status->nb_processed != 1 || status->failure) {
+        DOCA_LOG_ERR("Failed to process entries");
+        return DOCA_ERROR_BAD_STATE;
     }
 
     DOCA_LOG_DBG("Added a hairpin pipe entry to port %d on queues %d-%d",

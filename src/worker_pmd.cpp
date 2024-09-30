@@ -15,10 +15,28 @@
 
 DOCA_LOG_REGISTER(SELECTIVE_FWD_PMD);
 
+PipeMgr pipe_mgr = PipeMgr();
+
 bool allow_offload(struct rte_mbuf* pkt)
 {
     // todo: implement this function according to your firewall rules.
     return true;
+}
+
+std::string create_entry_name(const rte_ipv4_hdr* ipv4_hdr, const rte_tcp_hdr* tcp_hdr) {
+    char src_ip_str[INET_ADDRSTRLEN];
+    char dst_ip_str[INET_ADDRSTRLEN];
+
+    // Convert IP addresses to strings
+    inet_ntop(AF_INET, &ipv4_hdr->src_addr, src_ip_str, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &ipv4_hdr->dst_addr, dst_ip_str, INET_ADDRSTRLEN);
+
+    std::ostringstream oss;
+    oss << "hairpin_"
+        << src_ip_str << ':' << ntohs(tcp_hdr->src_port)
+        << "->"
+        << dst_ip_str << ':' << ntohs(tcp_hdr->dst_port);
+    return oss.str();
 }
 
 void
@@ -30,10 +48,6 @@ handle_packets(struct rte_mbuf* packets[],
     struct rte_ether_hdr* eth_hdr;
     struct rte_ipv4_hdr* ipv4_hdr;
     struct rte_tcp_hdr* tcp_hdr;
-    struct rte_ring* relevant_ring;
-    uint32_t flow_hash;
-    uint32_t ring_idx;
-    size_t num_rings = params->add_entry_rings->size();
 
     for (int packet_idx = 0; packet_idx < nb_packets; packet_idx++) {
         eth_hdr = rte_pktmbuf_mtod(packets[packet_idx], struct rte_ether_hdr*);
@@ -46,31 +60,34 @@ handle_packets(struct rte_mbuf* packets[],
             continue;
         }
 
-
         if (allow_offload(packets[packet_idx])) {
-            *(RTE_MBUF_DYNFIELD(packets[packet_idx], params->mbuf_src_port_offset, uint8_t *)) = port_id_in;
+            struct doca_flow_pipe_entry *entry;
+            struct entries_status status = {};
 
-            flow_hash = ipv4_hdr->src_addr ^ ipv4_hdr->dst_addr ^ tcp_hdr->src_port ^ tcp_hdr->dst_port;
-            ring_idx = flow_hash % num_rings;
-
-            relevant_ring = params->add_entry_rings->at(ring_idx);
-            if (rte_ring_enqueue(relevant_ring, packets[packet_idx])) {
-                DOCA_LOG_ERR("Failed to enqueue packet to ring");
+            doca_error_t result = add_hairpin_pipe_entry(
+                params->ports,
+                port_id_in,
+                params->app_cfg->hairpin_queues[port_id_in][port_id_in^1],
+                params->app_cfg->hairpin_q_count,
+                params->hairpin_pipes[port_id_in],
+                ipv4_hdr->dst_addr,
+                ipv4_hdr->src_addr,
+                tcp_hdr->dst_port,
+                tcp_hdr->src_port,
+                params->queue_id,
+                &status,
+                &entry
+            );
+            if (result != DOCA_SUCCESS) {
+                DOCA_LOG_ERR("Failed to add entry: %s", doca_error_get_descr(result));
+                return;
             }
+            std::string entry_name = "hairpin" + tcp_hdr->dst_port + '_';
+            pipe_mgr.add_entry(create_entry_name(ipv4_hdr, tcp_hdr), entry);
         }
     }
 }
 
-/*
- * Start the PMD
- *   In a real application, a user would start a PMD here listening on each
- * queue. For the sake of a simple demo, we instead query every packet received
- * on each queue and ask the user if they want to offload the flow to hardware.
- *
- * @ports [in]: array of ports
- * @hairpin_pipes [in]: array of hairpin pipes
- * @nb_queues [in]: number of queues
- */
 int start_pmd(void* pmd_params)
 {
     struct pmd_params_t* params = (struct pmd_params_t*)pmd_params;
@@ -158,3 +175,7 @@ int start_pmd(void* pmd_params)
 //         }
 //     }
 // }
+
+void print_stats() {
+    pipe_mgr.print_stats();
+}

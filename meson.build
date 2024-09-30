@@ -6,7 +6,7 @@ source_files = [
 	'src/main.cpp',
 	'src/pipes.cpp',
 	'src/worker_pmd.cpp',
-    'src/worker_offload.cpp',
+	'src/pipe_mgr.cpp',
 	'src/flow_common.cpp',
     'src/dpdk_utils.c',
 ]

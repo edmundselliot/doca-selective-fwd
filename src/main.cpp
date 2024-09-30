@@ -25,89 +25,28 @@ DOCA_LOG_REGISTER(SELECTIVE_FWD);
  * - remove_entry_ring: queue to remove entries
  */
 doca_error_t start_workers(
-    uint32_t nb_offload_workers,
-    uint32_t nb_pmd_workers,
     struct application_dpdk_config* app_cfg,
     struct doca_flow_port* ports[NUM_PORTS],
     struct doca_flow_pipe* hairpin_pipes[NUM_PORTS]
 )
 {
-    DOCA_LOG_INFO("Starting %u offload workers and %u pmd workers", nb_offload_workers, nb_pmd_workers);
-
     uint32_t lcore_id;
-    uint32_t offload_workers_launched = 0;
-    uint32_t pmd_workers_launched = 0;
-
-    assert(nb_pmd_workers == app_cfg->port_config.nb_queues);
-
-    std::vector<struct rte_ring*>* add_entry_rings = new std::vector<struct rte_ring*>(nb_offload_workers);
-    std::vector<struct rte_ring*>* remove_entry_rings = new std::vector<struct rte_ring*>(nb_offload_workers);
-
-    // For the offload workers to get metadata about a packet (which port it came from, and should go out from),
-    // we will use mbuf dynamic fields
-    struct rte_mbuf_dynfield dynfield = {
-        .name = "src_port",
-        .size = sizeof(uint8_t),
-        .align = __alignof__(uint8_t),
-    };
-    int src_port_offset = rte_mbuf_dynfield_register(&dynfield);
-
+    uint16_t queue_id = 0;
     RTE_LCORE_FOREACH_WORKER(lcore_id) {
-        if (offload_workers_launched < nb_offload_workers) {
-            DOCA_LOG_INFO("Starting offload thread on lcore %u", lcore_id);
+        DOCA_LOG_INFO("Starting PMD on lcore %u", lcore_id);
 
-            struct offload_params_t *offload_params = new offload_params_t;
-            if (offload_params == NULL) {
-                DOCA_LOG_ERR("Failed to allocate memory for offload_params");
-                return DOCA_ERROR_NO_MEMORY;
-            }
-
-            std::string add_ring_name = "add_entry_ring_" + std::to_string(lcore_id);
-            std::string remove_ring_name = "remove_entry_ring_" + std::to_string(lcore_id);
-
-            offload_params->app_cfg = app_cfg;
-            offload_params->ports = ports;
-            offload_params->hairpin_pipes = hairpin_pipes;
-            offload_params->doca_pipe_queue = offload_workers_launched;
-            offload_params->mbuf_src_port_offset = src_port_offset;
-            offload_params->add_entry_ring = rte_ring_create(add_ring_name.c_str(), 4096, rte_socket_id(), RING_F_SC_DEQ);
-            offload_params->remove_entry_ring = rte_ring_create(remove_ring_name.c_str(), 4096, rte_socket_id(), RING_F_SC_DEQ);
-            if (offload_params->add_entry_ring == NULL || offload_params->remove_entry_ring == NULL) {
-                DOCA_LOG_ERR("Failed to create rings");
-                return DOCA_ERROR_NO_MEMORY;
-            }
-            rte_eal_remote_launch(start_offload_thread, (void*)offload_params, lcore_id);
-
-            (*add_entry_rings)[offload_workers_launched] = offload_params->add_entry_ring;
-            (*remove_entry_rings)[offload_workers_launched] = offload_params->remove_entry_ring;
-
-            offload_workers_launched++;
+        struct pmd_params_t *pmd_params = new pmd_params_t;
+        if (pmd_params == NULL) {
+            DOCA_LOG_ERR("Failed to allocate memory for pmd_params");
+            return DOCA_ERROR_NO_MEMORY;
         }
-        else if (pmd_workers_launched < nb_pmd_workers) {
-            DOCA_LOG_INFO("Starting PMD on lcore %u", lcore_id);
 
-            struct pmd_params_t *pmd_params = new pmd_params_t;
-            if (pmd_params == NULL) {
-                DOCA_LOG_ERR("Failed to allocate memory for pmd_params");
-                return DOCA_ERROR_NO_MEMORY;
-            }
-
-            pmd_params->app_cfg = app_cfg;
-            pmd_params->queue_id = pmd_workers_launched;
-            pmd_params->add_entry_rings = add_entry_rings;
-            pmd_params->remove_entry_rings = remove_entry_rings;
-            pmd_params->mbuf_src_port_offset = src_port_offset;
-            rte_eal_remote_launch(start_pmd, (void*)pmd_params, lcore_id);
-
-            pmd_workers_launched++;
-        }
-        else {
-            DOCA_LOG_INFO("Nothing to launch on lcore %u", lcore_id);
-        }
+        pmd_params->app_cfg = app_cfg;
+        pmd_params->queue_id = queue_id++;
+        pmd_params->ports = ports;
+        pmd_params->hairpin_pipes = hairpin_pipes;
+        rte_eal_remote_launch(start_pmd, (void*)pmd_params, lcore_id);
     }
-
-    assert(offload_workers_launched == nb_offload_workers);
-    assert(pmd_workers_launched == nb_pmd_workers);
 
     return DOCA_SUCCESS;
 }
@@ -160,42 +99,16 @@ doca_error_t run_app(struct application_dpdk_config* app_cfg)
         goto cleanup;
     }
 
-    /*
-        DYNAMIC CONFIGURATION
-        ┌────┐    ┌────┐              ┌───┐ ┌────┐   ┌───┐
-        │RXQ0┼───►│PMD0├─────┬───────►│AR0├─►OFF0┼──►│PQ0│
-        ├────┤    ├────┤     │        ├───┤ └▲───┘   └───┘
-        │RXQ1├───►│PMD1│     ├───────►│RR0┼──┘
-        ├────┤    ├────┤     │        └───┘
-        │RXQ2┼───►│PMD2│     │        ┌───┐ ┌────┐   ┌───┐
-        ├────┤    ├────┤     ├───────►│AR1├─►OFF1┼──►│PQ1│
-        │RXQ3├───►│PMD3│     │        ├───┤ └▲───┘   └───┘
-        └────┘    └────┘     └───────►│RR1┼──┘
-                                      └───┘
-        Note: any PMD can reach any AR/RR. For simplicity we only show the connections for PMD0 above.
-
-        We start any number of PMD workers and offload workers.
-        - The offload workers will each have an "add ring" and a "remove ring" which contain information
-            about the flows to add and remove. They will pull information off those rings, and add remove
-            using a unique pipe queue for each offload worker.
-        - The PMD workers will read packets and queue offloads to the offload workers. Any PMD worker can
-            queue to any offload worker. To decide which offload worker to queue to, all PMDs will
-            hash the flow key and use the hash to decide which offload worker to queue to.
-
-        For the offload workers to get metadata about a packet (which port it came from, and should go out from),
-        we will use mbuf dynamic fields
-    */
-    result = start_workers(
-        app_cfg->reserved_cores, // nb offload workers
-        app_cfg->port_config.nb_queues, // nb pmd workers
-        app_cfg, port_arr, hairpin_pipe_arr);
+    // DYNAMIC CONFIGURATION
+    //   Start PMD threads which pull packets and offload to HW
+    result = start_workers(app_cfg, port_arr, hairpin_pipe_arr);
     if (result != DOCA_SUCCESS) {
         DOCA_LOG_ERR("Failed to start workers: %s", doca_error_get_descr(result));
         goto cleanup;
     }
 
     while (1) {
-        // DOCA_LOG_INFO("stats");
+        print_stats();
         sleep(1);
     }
 
@@ -225,8 +138,8 @@ main(int argc, char** argv)
     dpdk_config.port_config.nb_hairpin_q = 4; // total per-port
     dpdk_config.reserve_main_thread = true; // used for stats
     dpdk_config.port_config.self_hairpin = true;
-    dpdk_config.port_config.nb_queues = 2; // N queues and N pmd workers
-    dpdk_config.reserved_cores = 8; // N set of rings and N offload workers
+    dpdk_config.port_config.nb_queues = 1; // N queues and N pmd workers
+    dpdk_config.reserved_cores = 0; // 0 reserved cores
 
     /* Register a logger backend */
     result = doca_log_backend_create_standard();
