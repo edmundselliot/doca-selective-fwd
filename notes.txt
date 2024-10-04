@@ -1,5 +1,0 @@
-1 offload thread  can add/remove 1M flows in 1s.
-2 offload threads can add/remove 2M flows in 1s.
-8 offload threads can add/remove 8M flows in ~0.9s. Reaches CPS goal?
-
-build/doca-selective-fwd -a8a:00.0,dv_flow_en=2,dv_xmeta_en=4 -a8a:00.1,dv_flow_en=2,dv_xmeta_en=4 -c 0x1fff000000
